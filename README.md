@@ -14,6 +14,9 @@ attributes it to "mass drivers on high-gravity worlds"; the real cause is below.
 
 **No game files are included here.** You need your own copy of Alien Legacy.
 The patcher only modifies an `AL.EXE` you already have, after verifying it.
+The game has been out of print for decades (it is on GOG's community wishlist,
+not its store); the copy this patch was developed against came from
+[My Abandonware](https://www.myabandonware.com/game/alien-legacy-21h).
 
 ## How to apply
 
