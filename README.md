@@ -1,30 +1,40 @@
-# Alien Legacy fixes + autosave (ALFIX)
+# ALFIX — Alien Legacy mass-driver fixes + autosave
 
-A patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01) that fixes two
-bugs in the game's mass drivers and adds an in-game **autosave**. The first bug is the
-game's best-known crash:
+A patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01). It does three things:
 
-```
-DOS/4GW Professional error (2001): exception 00h (divide by zero) at 180:001F75F5
-Crash address (unrelocated) = 1:0002E5F5
-```
+1. **Fixes the game's best-known crash.** Once a colony has a mass driver aimed at
+   certain destinations, the game dies whenever the clock advances:
+   ```
+   DOS/4GW Professional error (2001): exception 00h (divide by zero) at 180:001F75F5
+   Crash address (unrelocated) = 1:0002E5F5
+   ```
+   Sierra's README blames "mass drivers on high-gravity worlds"; the real cause is below.
+2. **Makes mass drivers actually deliver.** Aimed at most destinations they never
+   fire: their "Turns left" counter is loaded from garbage (often tens of thousands,
+   sometimes 0). Same root cause. Fixed, they launch 25 ore every 6 turns, the
+   interval the game's own data files specify.
+3. **Adds an in-game autosave.** Every 200 turns the game silently writes
+   `AUTO1.SAV` .. `AUTO5.SAV` (rotating, so the five most recent are kept) using its
+   own save routine. They appear in the normal Load Game list. Nothing changes in
+   the UI and your own save name is untouched.
 
-It happens during turn processing (usually right after you speed up time) once a
-colony has a **mass driver** aimed at certain destinations. Sierra's own README
-attributes it to "mass drivers on high-gravity worlds"; the real cause is below.
+**No game files are included here.** You need your own copy of Alien Legacy. The
+game has been out of print for decades; the copy this patch was developed against
+came from [My Abandonware](https://www.myabandonware.com/game/alien-legacy-21h).
+The patcher only modifies an `AL.EXE` you already have, after verifying every byte
+it is about to change.
 
-**Autosave.** Every 200 turns the game silently writes `AUTO1.SAV` .. `AUTO5.SAV`
-(rotating, so the five most recent are kept), using the game's own save routine.
-They show up in the normal Load Game list like any other save. Nothing changes in
-the UI and your own save name is untouched. It can be left out with
-`python3 alfix.py --no-autosave`.
+## Two editions
 
-**No game files are included here.** You need your own copy of Alien Legacy.
-The patcher only modifies an `AL.EXE` you already have, after verifying it.
+| | mass-driver fixes | autosave |
+|---|:---:|:---:|
+| **Standard** (`ALFIX.COM`, or `python3 alfix.py`) | yes | yes |
+| **Fixes only** (`python3 alfix.py --no-autosave`) | yes | no |
+
+Running the patcher on an executable that already has the fixes-only edition
+upgrades it to standard.
 
 ## How to apply
-
-Two equivalent patchers. Pick whichever is easier for you.
 
 **Inside DOSBox (no other tools needed).** Copy `ALFIX.COM` into the game folder
 (next to `AL.EXE`), then from the DOS prompt in that folder run:
@@ -36,7 +46,8 @@ ALFIX
 **From a modern OS with Python 3.** Copy `alfix.py` into the game folder and run:
 
 ```
-python3 alfix.py
+python3 alfix.py                 # standard edition
+python3 alfix.py --no-autosave   # fixes only
 ```
 
 Either way the patcher checks every byte it is about to change, refuses to touch a
@@ -55,11 +66,10 @@ python3 alfix.py --fix-saves            # (from the game folder; or pass the SAV
 which resets every online mass driver with a garbage countdown to the correct
 6-turn cycle, keeping the untouched saves in `SAVES/BACKUP/`.
 
-Built and tested against the v1.01 CD executable
+**Versions.** Built and tested against the v1.01 CD executable
 (`AL.EXE`, 827,647 bytes, MD5 `fb004009cb1dd703a143a5d9775c5b8c`).
-Patched result: MD5 `a1998a1e69f2454a5959c2bcea5f9dae`
-(`9644652f2e9c2b64fb04c5b580f7d010` with `--no-autosave`). Running the patcher
-on an executable that already has the bug fixes adds the autosave to it.
+Standard edition result: MD5 `a1998a1e69f2454a5959c2bcea5f9dae`;
+fixes only: `9644652f2e9c2b64fb04c5b580f7d010`.
 If your `AL.EXE` differs (another release or a floppy version) the patcher will
 say so and change nothing; please open an issue with your file's size and MD5.
 
