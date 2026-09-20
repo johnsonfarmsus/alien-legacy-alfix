@@ -8,15 +8,14 @@ DOS/4GW Professional error (2001): exception 00h (divide by zero) at 180:001F75F
 Crash address (unrelocated) = 1:0002E5F5
 ```
 
-It happens during turn processing (usually right after you speed up time) once a
-colony has a **mass driver** aimed at certain destinations. Sierra's own README
+It happens during turn processing once a colony has a **mass driver** aimed at
+certain destinations: from then on the game dies whenever the clock advances. Sierra's own README
 attributes it to "mass drivers on high-gravity worlds"; the real cause is below.
 
 **No game files are included here.** You need your own copy of Alien Legacy.
 The patcher only modifies an `AL.EXE` you already have, after verifying it.
-The game has been out of print for decades (it is on GOG's community wishlist,
-not its store); the copy this patch was developed against came from
-[My Abandonware](https://www.myabandonware.com/game/alien-legacy-21h).
+The game has been out of print for decades; the copy this patch was developed
+against came from [My Abandonware](https://www.myabandonware.com/game/alien-legacy-21h).
 
 ## How to apply
 
