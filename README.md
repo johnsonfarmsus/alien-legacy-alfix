@@ -1,21 +1,19 @@
-# Alien Legacy mass-driver crash fix (ALFIX)
+# Alien Legacy mass-driver fixes (ALFIX)
 
-A 35-byte patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01) that fixes
-the game's best-known crash:
+An 86-byte patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01) that fixes
+two bugs in the game's mass drivers. The first is the game's best-known crash:
 
 ```
 DOS/4GW Professional error (2001): exception 00h (divide by zero) at 180:001F75F5
 Crash address (unrelocated) = 1:0002E5F5
 ```
 
-It happens during turn processing once a colony has a **mass driver** aimed at
-certain destinations: from then on the game dies whenever the clock advances. Sierra's own README
+It happens during turn processing (usually right after you speed up time) once a
+colony has a **mass driver** aimed at certain destinations. Sierra's own README
 attributes it to "mass drivers on high-gravity worlds"; the real cause is below.
 
 **No game files are included here.** You need your own copy of Alien Legacy.
 The patcher only modifies an `AL.EXE` you already have, after verifying it.
-The game has been out of print for decades; the copy this patch was developed
-against came from [My Abandonware](https://www.myabandonware.com/game/alien-legacy-21h).
 
 ## How to apply
 
@@ -39,9 +37,20 @@ file that doesn't match, writes a backup first (`AL.BAK` for the DOS version,
 `AL.EXE.ORIG` for the Python one), and reports "already patched" if run again.
 To undo, rename the backup back to `AL.EXE`.
 
+**Existing saves.** A mass driver that already has a garbage countdown keeps
+counting from it even after the executable is patched (it only reloads on its
+next launch). Either take the driver offline and back online in-game, or run
+
+```
+python3 alfix.py --fix-saves            # (from the game folder; or pass the SAVES dir)
+```
+
+which resets every online mass driver with a garbage countdown to the correct
+6-turn cycle, keeping the untouched saves in `SAVES/BACKUP/`.
+
 Built and tested against the v1.01 CD executable
 (`AL.EXE`, 827,647 bytes, MD5 `fb004009cb1dd703a143a5d9775c5b8c`).
-Patched result: MD5 `cc559fb99d9dd01bb5db44efdc669503`.
+Patched result: MD5 `9644652f2e9c2b64fb04c5b580f7d010`.
 If your `AL.EXE` differs (another release or a floppy version) the patcher will
 say so and change nothing; please open an issue with your file's size and MD5.
 
@@ -79,9 +88,21 @@ mass drivers are fine and others crash the game every time the clock advances.
 (A side effect: unpatched, mass drivers are charged a nonsense per-turn cost
 read from that unrelated memory.)
 
+The same mistake appears in the routine that (re)loads an installation's
+countdown (`0x2E070`). Installations with no product take their cycle length from
+their own `INST.DAT` row (the word at +0x32); anything with a product code of 4 or
+more takes it from the `PROD.DAT` row. A mass driver's destination number sends it
+down the second path, so its countdown is loaded from memory past the table:
+18,998 turns for one destination, 0 for another. The correct value is right there
+in `INST.DAT`: the mass driver's row says **6**. The game's delivery code itself is
+fine (it has an explicit mass-driver branch that ships 25 ore to the destination
+colony when the countdown expires); it just never gets a sane countdown. Two
+other routines on this path (`0x3182C`, `0x327CA`) *do* bounds-check the product
+code, so the original programmers guarded most of these lookups and missed two.
+
 ## What the patch changes
 
-Four in-place edits, same length as the original code, so nothing else moves.
+Five in-place edits, same length as the original code, so nothing else moves.
 Offsets are relative to LE object 1; add `0x3E324` for the file offset.
 
 | obj1 offset | original | patched | effect |
@@ -90,6 +111,8 @@ Offsets are relative to LE object 1; add `0x3E324` for the file offset.
 | `0x2E594` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` | Replaces a redundant register spill with `mov ebp,eax / test ebp,ebp / jz skip`: a zero divisor on the first `idiv` contributes nothing instead of trapping. |
 | `0x2E5E8` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` | Same guard on the second `idiv` (the crash site). |
 | `0x2A89C` | `31FF 668BB83E950000 89D0 C1FA1F F7FF 89C2` | `0FB7B83E950000 92 99 85FF 7501 47 F7FF 89C2` | A second function (installation cost display) has the same unchecked lookup. Rewritten with `movzx`/`xchg`/`cdq` to make room for `test edi,edi / jnz / inc edi`, so a zero divisor is treated as 1. |
+
+| `0x2E0A1` | `83FE04 7D18 8D04AD00000000 29E8 C1E002 01E8 668B8482D68A0000 EB16 8D46FC 890424 8B3424 C1E003 29F0 668B84423E950000` | `8D46FC 83F80E 7711 89C6 C1E003 29F0 668B84423E950000 EB1A 8D04AD00000000 29E8 C1E002 01E8 668B8482D68A0000 90909090` | The countdown loader's branch selector, rewritten (51 bytes, 4 spare) so that `(product-4)` is compared unsigned against 14: codes 4..18 use `PROD.DAT` as before, everything else (including mass-driver destinations) uses the installation's own `INST.DAT` cycle. Mass drivers now fire every 6 turns. |
 
 For every valid product code the patched code behaves identically to the original.
 
@@ -106,7 +129,7 @@ nasm -f bin alfix.asm -o ALFIX.COM
 ```
 
 `alfix.asm` is plain 8086 code using only DOS INT 21h calls; the resulting
-`ALFIX.COM` is under 1 KB. MD5 of the included build: `cdb1e9dc7a5f4d319fb2f3fb6fe1136b`.
+`ALFIX.COM` is about 1 KB. MD5 of the included build: `8683bc8309d6c1a3ffc957726aca3386`.
 
 ## License
 

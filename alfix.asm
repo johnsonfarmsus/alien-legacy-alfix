@@ -1,4 +1,5 @@
-; ALFIX.COM -- fixes the mass-driver divide-by-zero crash in Alien Legacy (DOS v1.01)
+; ALFIX.COM -- fixes the mass-driver bugs in Alien Legacy (DOS v1.01):
+;   the divide-by-zero crash, and mass drivers that never deliver
 ; Build:  nasm -f bin alfix.asm -o ALFIX.COM
 ; Run inside DOSBox from the game folder:  ALFIX
 ;
@@ -211,7 +212,7 @@ h_exe   dw 0
 h_bak   dw 0
 n_already db 0
 
-msg_banner  db 'ALFIX - Alien Legacy mass-driver divide-by-zero fix',13,10,'$'
+msg_banner  db 'ALFIX - Alien Legacy mass-driver fixes (crash + delivery)',13,10,'$'
 msg_backup  db 'Backup written: AL.BAK',13,10,'$'
 msg_done    db 'AL.EXE patched. You are good to go.',13,10,'$'
 msg_already db 'AL.EXE is already patched. Nothing to do.',13,10,'$'
@@ -220,7 +221,7 @@ msg_mismatch db 'This AL.EXE does not match the expected v1.01 build.',13,10
 msg_ioerr   db 'File error. Nothing (or only part) was changed - restore AL.BAK if present.',13,10,'$'
 msg_noexe   db 'AL.EXE not found. Run ALFIX from the Alien Legacy folder.',13,10,'$'
 
-NPATCH  equ 4
+NPATCH  equ 5
 ; entry: dd file_offset ; dw len ; dw old_ptr ; dw new_ptr ; db already_flag
 patch_table:
         dd PAGES+2E5B7h
@@ -235,6 +236,9 @@ patch_table:
         dd PAGES+2A89Ch
         dw 18, p4_old, p4_new
         db 0
+        dd PAGES+2E0A1h
+        dw 51, p5_old, p5_new
+        db 0
         dw 0                            ; terminator
 
 p1_old  db 83h,0FAh,04h, 7Ch,3Fh, 8Dh,42h,0FCh, 6Bh,0D0h,0Eh
@@ -244,5 +248,8 @@ p2_new  db 89h,0C5h, 85h,0EDh, 74h,0Dh, 90h,90h
 p4_old  db 31h,0FFh, 66h,8Bh,0B8h,3Eh,95h,00h,00h, 89h,0D0h, 0C1h,0FAh,1Fh, 0F7h,0FFh, 89h,0C2h
 p4_new  db 0Fh,0B7h,0B8h,3Eh,95h,00h,00h, 92h, 99h, 85h,0FFh, 75h,01h, 47h, 0F7h,0FFh, 89h,0C2h
 
-buf     times 32 db 0
+p5_old  db 83h, 0FEh, 04h, 7Dh, 18h, 8Dh, 04h, 0ADh, 00h, 00h, 00h, 00h, 29h, 0E8h, 0C1h, 0E0h, 02h, 01h, 0E8h, 66h, 8Bh, 84h, 82h, 0D6h, 8Ah, 00h, 00h, 0EBh, 16h, 8Dh, 46h, 0FCh, 89h, 04h, 24h, 8Bh, 34h, 24h, 0C1h, 0E0h, 03h, 29h, 0F0h, 66h, 8Bh, 84h, 42h, 3Eh, 95h, 00h, 00h
+p5_new  db 8Dh, 46h, 0FCh, 83h, 0F8h, 0Eh, 77h, 11h, 89h, 0C6h, 0C1h, 0E0h, 03h, 29h, 0F0h, 66h, 8Bh, 84h, 42h, 3Eh, 95h, 00h, 00h, 0EBh, 1Ah, 8Dh, 04h, 0ADh, 00h, 00h, 00h, 00h, 29h, 0E8h, 0C1h, 0E0h, 02h, 01h, 0E8h, 66h, 8Bh, 84h, 82h, 0D6h, 8Ah, 00h, 00h, 90h, 90h, 90h, 90h
+
+buf     times 64 db 0
 copybuf:                                ; 32K copy buffer lives past the end of the image
