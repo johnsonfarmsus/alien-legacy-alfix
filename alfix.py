@@ -2,13 +2,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Trevor Johnson
 """
-alfix.py -- fixes the mass-driver bugs in Alien Legacy (DOS, v1.01): the divide-by-zero
-crash, and mass drivers that never deliver because their countdown is garbage.
+alfix.py -- Alien Legacy (DOS, v1.01): fixes the mass-driver divide-by-zero crash and
+mass drivers that never deliver, and adds an in-game autosave (every 200 turns, AUTO1-5).
 
     DOS/4GW Professional error (2001): exception 00h (divide by zero) at 180:001F75F5
 
 Usage:  put this file next to AL.EXE and run:   python3 alfix.py
         (or:  python3 alfix.py /path/to/AL.EXE)
+        python3 alfix.py --no-autosave   apply the bug fixes but not the autosave feature
         python3 alfix.py --fix-saves [SAVES_DIR]   repair existing saves whose
             mass drivers already have a garbage countdown (see README)
 
@@ -26,10 +27,13 @@ later version. It is distributed WITHOUT ANY WARRANTY; see the LICENSE file.
 import hashlib, os, shutil, sys
 
 ORIG_MD5 = "fb004009cb1dd703a143a5d9775c5b8c"
-PATCHED_MD5 = "9644652f2e9c2b64fb04c5b580f7d010"
+PATCHED_MD5 = "a1998a1e69f2454a5959c2bcea5f9dae"      # all patches incl. autosave
+PATCHED_MD5_NOAUTO = "9644652f2e9c2b64fb04c5b580f7d010"  # bug fixes only (--no-autosave)
 PAGES = 0x3E324  # file offset of LE object 1, page 0 (verified against the fixup table)
 
 # (object-1 offset, original bytes, patched bytes, description)
+# Entries with an offset >= 0 are LE object-1 offsets (file offset = PAGES + off);
+# a negative offset -N means raw file offset N (used for the LE header edit).
 PATCHES = [
     (0x2E5B7, "83fa047c3f8d42fc6bd00e", "83ea0483fa0f733c6bd20e",
      "bounds-check the PROD.DAT row index (product codes 4..18 only)"),
@@ -44,6 +48,17 @@ PATCHES = [
      "8d46fc83f80e771189c6c1e00329f0668b84423e950000eb1a8d04ad0000000029e8c1e00201e8668b8482d68a000090909090",
      "bounds-check the product code when (re)loading an installation's countdown, so mass drivers get their 6-turn cycle from INST.DAT"),
 ]
+
+# Optional feature: in-game autosave every 200 turns to AUTO1..AUTO5 (see README / autosave.asm)
+AUTOSAVE_PATCHES = [
+    (0x41523, "5d5f5e595bc3", "e95878010090",
+     "autosave: hook the turn-tick epilogue (jmp to the cave)"),
+    (0x58D80, "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "9c60fce8000000005b81eb888d05008bb35a1404008b063b83048e0500745c31d2b9c8000000f7f185d2754f8b0e898b048e05004831d2b905000000f7f18bb3080e0400568dbb088e0500b904000000f3a55fc7074155544f80c231885704c6470500e80880feff8db3088e05008bbb080e0400b904000000f3a5619d5d5f5e595bc3900000000000000000000000000000000000000000",
+     "autosave: the code cave (turn % 200 == 0 -> save AUTOn)"),
+    (-0x28780, "688d0500", "00900500",
+     "autosave: LE header, object 1 size 0x58D68 -> 0x59000 so the cave page is fully mapped"),
+]
+
 
 
 def fix_saves(argv):
@@ -83,10 +98,18 @@ def fix_saves(argv):
             print(f"  {os.path.basename(fn)}: nothing to fix")
 
 
+def site(off):
+    return PAGES + off if off >= 0 else -off
+
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--fix-saves":
         return fix_saves(sys.argv[2:])
-    path = sys.argv[1] if len(sys.argv) > 1 else None
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    autosave = "--no-autosave" not in sys.argv
+    patches = PATCHES + (AUTOSAVE_PATCHES if autosave else [])
+    want_md5 = PATCHED_MD5 if autosave else PATCHED_MD5_NOAUTO
+    path = args[0] if args else None
     if path is None:
         here = os.path.dirname(os.path.abspath(__file__))
         for name in ("AL.EXE", "al.exe", "Al.exe"):
@@ -98,7 +121,7 @@ def main():
 
     data = bytearray(open(path, "rb").read())
     md5 = hashlib.md5(data).hexdigest()
-    if md5 == PATCHED_MD5:
+    if md5 == want_md5:
         print(f"{os.path.basename(path)} is already patched. Nothing to do.")
         return
     if md5 != ORIG_MD5:
@@ -108,8 +131,8 @@ def main():
 
     # verify every site before touching anything
     todo = []
-    for off, old, new, desc in PATCHES:
-        cur = bytes(data[PAGES + off: PAGES + off + len(old) // 2]).hex()
+    for off, old, new, desc in patches:
+        cur = bytes(data[site(off): site(off) + len(old) // 2]).hex()
         if cur == new:
             print(f"  already patched: {desc}")
         elif cur == old:
@@ -124,12 +147,12 @@ def main():
         print(f"backup written: {os.path.basename(backup)}")
 
     for off, old, new, desc in todo:
-        data[PAGES + off: PAGES + off + len(new) // 2] = bytes.fromhex(new)
+        data[site(off): site(off) + len(new) // 2] = bytes.fromhex(new)
         print(f"  patched: {desc}")
     open(path, "wb").write(data)
     print(f"done. {os.path.basename(path)} md5 is now {hashlib.md5(data).hexdigest()}")
-    if hashlib.md5(data).hexdigest() != PATCHED_MD5:
-        print("(note: not byte-identical to the reference patched build, but all four sites are patched)")
+    if hashlib.md5(data).hexdigest() != want_md5:
+        print("(note: not byte-identical to the reference patched build, but all sites are patched)")
 
 
 if __name__ == "__main__":

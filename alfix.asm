@@ -1,5 +1,5 @@
-; ALFIX.COM -- fixes the mass-driver bugs in Alien Legacy (DOS v1.01):
-;   the divide-by-zero crash, and mass drivers that never deliver
+; ALFIX.COM -- Alien Legacy (DOS v1.01): fixes the mass-driver divide-by-zero crash
+;   and mass drivers that never deliver, and adds an autosave every 200 turns (AUTO1-5)
 ; Build:  nasm -f bin alfix.asm -o ALFIX.COM
 ; Run inside DOSBox from the game folder:  ALFIX
 ;
@@ -212,7 +212,7 @@ h_exe   dw 0
 h_bak   dw 0
 n_already db 0
 
-msg_banner  db 'ALFIX - Alien Legacy mass-driver fixes (crash + delivery)',13,10,'$'
+msg_banner  db 'ALFIX - Alien Legacy: mass-driver fixes + autosave',13,10,'$'
 msg_backup  db 'Backup written: AL.BAK',13,10,'$'
 msg_done    db 'AL.EXE patched. You are good to go.',13,10,'$'
 msg_already db 'AL.EXE is already patched. Nothing to do.',13,10,'$'
@@ -221,7 +221,7 @@ msg_mismatch db 'This AL.EXE does not match the expected v1.01 build.',13,10
 msg_ioerr   db 'File error. Nothing (or only part) was changed - restore AL.BAK if present.',13,10,'$'
 msg_noexe   db 'AL.EXE not found. Run ALFIX from the Alien Legacy folder.',13,10,'$'
 
-NPATCH  equ 5
+NPATCH  equ 8
 ; entry: dd file_offset ; dw len ; dw old_ptr ; dw new_ptr ; db already_flag
 patch_table:
         dd PAGES+2E5B7h
@@ -239,6 +239,15 @@ patch_table:
         dd PAGES+2E0A1h
         dw 51, p5_old, p5_new
         db 0
+        dd PAGES+41523h                 ; autosave: hook
+        dw 6, p6_old, p6_new
+        db 0
+        dd PAGES+58D80h                 ; autosave: code cave
+        dw CAVELEN, p7_old, p7_new
+        db 0
+        dd 28780h                       ; autosave: LE header obj1 size
+        dw 4, p8_old, p8_new
+        db 0
         dw 0                            ; terminator
 
 p1_old  db 83h,0FAh,04h, 7Ch,3Fh, 8Dh,42h,0FCh, 6Bh,0D0h,0Eh
@@ -251,5 +260,17 @@ p4_new  db 0Fh,0B7h,0B8h,3Eh,95h,00h,00h, 92h, 99h, 85h,0FFh, 75h,01h, 47h, 0F7h
 p5_old  db 83h, 0FEh, 04h, 7Dh, 18h, 8Dh, 04h, 0ADh, 00h, 00h, 00h, 00h, 29h, 0E8h, 0C1h, 0E0h, 02h, 01h, 0E8h, 66h, 8Bh, 84h, 82h, 0D6h, 8Ah, 00h, 00h, 0EBh, 16h, 8Dh, 46h, 0FCh, 89h, 04h, 24h, 8Bh, 34h, 24h, 0C1h, 0E0h, 03h, 29h, 0F0h, 66h, 8Bh, 84h, 42h, 3Eh, 95h, 00h, 00h
 p5_new  db 8Dh, 46h, 0FCh, 83h, 0F8h, 0Eh, 77h, 11h, 89h, 0C6h, 0C1h, 0E0h, 03h, 29h, 0F0h, 66h, 8Bh, 84h, 42h, 3Eh, 95h, 00h, 00h, 0EBh, 1Ah, 8Dh, 04h, 0ADh, 00h, 00h, 00h, 00h, 29h, 0E8h, 0C1h, 0E0h, 02h, 01h, 0E8h, 66h, 8Bh, 84h, 82h, 0D6h, 8Ah, 00h, 00h, 90h, 90h, 90h, 90h
 
-buf     times 64 db 0
+p6_old  db 5Dh,5Fh,5Eh,59h,5Bh,0C3h
+p6_new  db 0E9h,58h,78h,01h,00h,90h
+CAVELEN equ 152
+p7_old  times CAVELEN db 0
+p7_new  db 9Ch, 60h, 0FCh, 0E8h, 00h, 00h, 00h, 00h, 5Bh, 81h, 0EBh, 88h, 8Dh, 05h, 00h, 8Bh, 0B3h, 5Ah, 14h, 04h, 00h, 8Bh, 06h, 3Bh, 83h, 04h, 8Eh, 05h, 00h, 74h, 5Ch, 31h
+        db 0D2h, 0B9h, 0C8h, 00h, 00h, 00h, 0F7h, 0F1h, 85h, 0D2h, 75h, 4Fh, 8Bh, 0Eh, 89h, 8Bh, 04h, 8Eh, 05h, 00h, 48h, 31h, 0D2h, 0B9h, 05h, 00h, 00h, 00h, 0F7h, 0F1h, 8Bh, 0B3h
+        db 08h, 0Eh, 04h, 00h, 56h, 8Dh, 0BBh, 08h, 8Eh, 05h, 00h, 0B9h, 04h, 00h, 00h, 00h, 0F3h, 0A5h, 5Fh, 0C7h, 07h, 41h, 55h, 54h, 4Fh, 80h, 0C2h, 31h, 88h, 57h, 04h, 0C6h
+        db 47h, 05h, 00h, 0E8h, 08h, 80h, 0FEh, 0FFh, 8Dh, 0B3h, 08h, 8Eh, 05h, 00h, 8Bh, 0BBh, 08h, 0Eh, 04h, 00h, 0B9h, 04h, 00h, 00h, 00h, 0F3h, 0A5h, 61h, 9Dh, 5Dh, 5Fh, 5Eh
+        db 59h, 5Bh, 0C3h, 90h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h
+p8_old  db 68h,8Dh,05h,00h
+p8_new  db 00h,90h,05h,00h
+
+buf     times 256 db 0
 copybuf:                                ; 32K copy buffer lives past the end of the image
