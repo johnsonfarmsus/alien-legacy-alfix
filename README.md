@@ -148,17 +148,17 @@ For every valid product code the patched code behaves identically to the origina
 
 Sierra's v1.10 release (March 1995) did not fix any of this: its release notes don't
 mention mass drivers, and the code still has the same unchecked lookups and unguarded
-divisions. The code moved (LE object 1 now starts at file offset `0x1EA00`) and two
+divisions. The code moved (LE object 1 now starts at file offset `0x45054`) and two
 sites are compiled with different registers, so they are re-encoded. Same fixes,
 same lengths:
 
 | obj1 offset | v1.01 equivalent | original | patched |
 |---|---|---|---|
-| `0x42F4B` | `0x2E5B7` | `83FA04 7C40 8D42FC 6BC00E` | `83EA04 83FA0F 733D 6BC20E` (`imul eax,edx,14`: v1.10 keeps the row offset in `eax`) |
-| `0x42F28` | `0x2E594` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` (identical) |
-| `0x42F7D` | `0x2E5E8` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` (identical) |
-| `0x3F15E` | `0x2A89C` | `31FF 668BB83E950000 89D0 C1FA1F F7FF` | `0FB7B83E950000 92 99 85FF 7501 47 F7FF` (the first 16 bytes of the v1.01 edit; the instruction after it differs in v1.10 and is left alone) |
-| `0x42A3A` | `0x2E0A1` | `83FD04 7D0D 6BC334 668B8406D68A0000 EB1A 8D45FC 890424 8B2C24 8D04C500000000 29E8 668B84463E950000` | `8D45FC 83F80E 7715 89C5 8D04C500000000 29E8 668B84463E950000 EB0F 6BC334 668B8406D68A0000 90909090` (44 bytes; v1.10 holds the product in `ebp` and the kind in `ebx`) |
+| `0x1C8F7` | `0x2E5B7` | `83FA04 7C40 8D42FC 6BC00E` | `83EA04 83FA0F 733D 6BC20E` (`imul eax,edx,14`: v1.10 keeps the row offset in `eax`) |
+| `0x1C8D4` | `0x2E594` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` (identical) |
+| `0x1C929` | `0x2E5E8` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` (identical) |
+| `0x18B0A` | `0x2A89C` | `31FF 668BB83E950000 89D0 C1FA1F F7FF` | `0FB7B83E950000 92 99 85FF 7501 47 F7FF` (the first 16 bytes of the v1.01 edit; the instruction after it differs in v1.10 and is left alone) |
+| `0x1C3E6` | `0x2E0A1` | `83FD04 7D0D 6BC334 668B8406D68A0000 EB1A 8D45FC 890424 8B2C24 8D04C500000000 29E8 668B84463E950000` | `8D45FC 83F80E 7715 89C5 8D04C500000000 29E8 668B84463E950000 EB0F 6BC334 668B8406D68A0000 90909090` (44 bytes; v1.10 holds the product in `ebp` and the kind in `ebx`) |
 
 The other three divisions in v1.10's cost routine are safe, as in v1.01: one is reached
 only for product code 4 exactly, one only for installation kinds 0x16/0x19/0x1A, and

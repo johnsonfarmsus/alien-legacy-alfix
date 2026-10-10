@@ -59,15 +59,15 @@ AUTOSAVE_PATCHES_101 = [
 
 # ---- v1.10 CD ----  (same bugs; the code moved and two sites use different registers)
 PATCHES_110 = [
-    (0x42F4B, "83fa047c408d42fc6bc00e", "83ea0483fa0f733d6bc20e",
+    (0x1C8F7, "83fa047c408d42fc6bc00e", "83ea0483fa0f733d6bc20e",
      "bounds-check the PROD.DAT row index (product codes 4..18 only)"),
-    (0x42F28, "894424348b6c2434", "89c585ed740d9090",
+    (0x1C8D4, "894424348b6c2434", "89c585ed740d9090",
      "zero-divisor guard, 1st idiv in per-turn cost loop"),
-    (0x42F7D, "894424348b6c2434", "89c585ed740d9090",
+    (0x1C929, "894424348b6c2434", "89c585ed740d9090",
      "zero-divisor guard, 2nd idiv in per-turn cost loop (the crash site)"),
-    (0x3F15E, "31ff668bb83e95000089d0c1fa1ff7ff", "0fb7b83e950000929985ff750147f7ff",
+    (0x18B0A, "31ff668bb83e95000089d0c1fa1ff7ff", "0fb7b83e950000929985ff750147f7ff",
      "zero-divisor guard in the installation cost display routine"),
-    (0x42A3A,
+    (0x1C3E6,
      "83fd047d0d6bc334668b8406d68a0000eb1a8d45fc8904248b2c248d04c50000000029e8668b84463e950000",
      "8d45fc83f80e771589c58d04c50000000029e8668b84463e950000eb0f6bc334668b8406d68a000090909090",
      "bounds-check the product code when (re)loading an installation's countdown, so mass drivers get their 6-turn cycle from INST.DAT"),
@@ -79,7 +79,7 @@ VERSIONS = [
          fixes=PATCHES_101, autosave=AUTOSAVE_PATCHES_101,
          md5_full="a1998a1e69f2454a5959c2bcea5f9dae",     # all patches incl. autosave
          md5_fixes="9644652f2e9c2b64fb04c5b580f7d010"),   # bug fixes only (--no-autosave)
-    dict(name="v1.10", pages=0x1EA00,
+    dict(name="v1.10", pages=0x45054,  # embedded MZ at 0x26654 + LE data-pages offset 0x1EA00
          orig_md5="e6c78d883eb7972bc4c69098cdeff971",
          fixes=PATCHES_110, autosave=None,                # autosave not ported to v1.10 yet
          md5_full=None,

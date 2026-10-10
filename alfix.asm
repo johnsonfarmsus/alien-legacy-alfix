@@ -15,7 +15,7 @@
         cpu 8086
 
 PAGES   equ 3E324h                      ; v1.01: file offset of LE object 1, page 0
-PAGES110 equ 1EA00h                     ; v1.10: file offset of LE object 1, page 0
+PAGES110 equ 45054h                     ; v1.10: file offset of LE object 1, page 0
 
 start:
         mov     dx, msg_banner
@@ -294,19 +294,19 @@ patch_table:                            ; v1.01
 patch_table_110:                        ; v1.10 (bug fixes only)
         db 5
         dw msg_v110
-        dd PAGES110+42F4Bh
+        dd PAGES110+1C8F7h
         dw 11, q1_old, q1_new
         db 0
-        dd PAGES110+42F28h
+        dd PAGES110+1C8D4h
         dw 8, p2_old, p2_new
         db 0
-        dd PAGES110+42F7Dh
+        dd PAGES110+1C929h
         dw 8, p2_old, p2_new
         db 0
-        dd PAGES110+3F15Eh              ; same code as v1.01 minus the final mov edx,eax
+        dd PAGES110+18B0Ah              ; same code as v1.01 minus the final mov edx,eax
         dw 16, p4_old, p4_new
         db 0
-        dd PAGES110+42A3Ah
+        dd PAGES110+1C3E6h
         dw 44, q5_old, q5_new
         db 0
         dw 0                            ; terminator
