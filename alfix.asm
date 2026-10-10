@@ -1,18 +1,21 @@
-; ALFIX.COM -- Alien Legacy (DOS v1.01): fixes the mass-driver divide-by-zero crash
-;   and mass drivers that never deliver, and adds an autosave every 200 turns (AUTO1-5)
+; ALFIX.COM -- Alien Legacy (DOS v1.01 and v1.10): fixes the mass-driver divide-by-zero
+;   crash and mass drivers that never deliver, and adds an autosave every 200 turns
+;   (AUTO1-5; v1.01 only for now)
 ; Build:  nasm -f bin alfix.asm -o ALFIX.COM
 ; Run inside DOSBox from the game folder:  ALFIX
 ;
 ; SPDX-License-Identifier: AGPL-3.0-or-later
 ; Copyright (C) 2026 Trevor Johnson -- GNU AGPL v3 or later, see LICENSE. No warranty.
 ;
-; Verifies every patch site before writing, backs up AL.EXE to AL.BAK,
-; and reports "already patched" if run twice.  Pure DOS INT 21h, no dependencies.
+; Detects the version by checking every patch site of each known build,
+; verifies them all before writing, backs up AL.EXE to AL.BAK, and reports
+; "already patched" if run twice.  Pure DOS INT 21h, no dependencies.
 
         org 100h
         cpu 8086
 
-PAGES   equ 3E324h                      ; file offset of LE object 1, page 0
+PAGES   equ 3E324h                      ; v1.01: file offset of LE object 1, page 0
+PAGES110 equ 1EA00h                     ; v1.10: file offset of LE object 1, page 0
 
 start:
         mov     dx, msg_banner
@@ -25,40 +28,23 @@ start:
         jc      .no_exe
         mov     [h_exe], ax
 
-        ; ---- pass 1: verify all sites ----
-        mov     si, patch_table
-.verify:
-        cmp     word [si], 0
-        je      .verified
-        call    seek_site
-        mov     ah, 3Fh                 ; read
-        mov     bx, [h_exe]
-        mov     cx, [si+4]              ; length
-        mov     dx, buf
-        int     21h
-        jc      .io_err
-        cmp     ax, [si+4]
-        jne     .io_err
-        ; compare with NEW bytes?
-        mov     cx, [si+4]
-        mov     di, [si+8]
-        call    cmp_buf
-        jne     .not_new
-        mov     byte [si+10], 1         ; flag: already patched
-        inc     byte [n_already]
-        jmp     .next
-.not_new:
-        mov     cx, [si+4]
-        mov     di, [si+6]
-        call    cmp_buf
-        jne     .mismatch
-.next:
-        add     si, 11
-        jmp     .verify
+        ; ---- pass 1: find the version whose sites all match ----
+.try:
+        mov     bx, [tab_ptr]
+        mov     si, [bx]
+        or      si, si
+        jz      .mismatch               ; no table matched
+        call    verify_table
+        jnc     .verified
+        add     word [tab_ptr], 2
+        jmp     .try
 
 .verified:
+        mov     [cur_tab], si
+        mov     dx, [si+1]              ; "Detected vX" message
+        call    print
         mov     al, [n_already]
-        cmp     al, NPATCH
+        cmp     al, [si]                ; all sites already patched?
         je      .already_all
 
         ; ---- backup AL.EXE -> AL.BAK (unless it exists) ----
@@ -78,7 +64,8 @@ start:
 
         ; ---- pass 2: write ----
 .write:
-        mov     si, patch_table
+        mov     si, [cur_tab]
+        add     si, 3                   ; skip the table header
 .wloop:
         cmp     word [si], 0
         je      .done
@@ -130,6 +117,52 @@ start:
         int     21h
 
 ; ---------------------------------------------------------------- helpers
+; verify_table: SI -> table header. Checks every site holds its original or
+; patched bytes, setting each entry's already flag and n_already.
+; CF clear if the whole table matches, set otherwise. Preserves SI.
+verify_table:
+        mov     byte [n_already], 0
+        push    si
+        add     si, 3                   ; skip the table header
+.v:
+        cmp     word [si], 0
+        je      .ok
+        mov     byte [si+10], 0
+        call    seek_site
+        jc      .bad
+        mov     ah, 3Fh                 ; read
+        mov     bx, [h_exe]
+        mov     cx, [si+4]              ; length
+        mov     dx, buf
+        int     21h
+        jc      .bad
+        cmp     ax, [si+4]              ; short read: file too small for this version
+        jne     .bad
+        ; compare with NEW bytes?
+        mov     cx, [si+4]
+        mov     di, [si+8]
+        call    cmp_buf
+        jne     .not_new
+        mov     byte [si+10], 1         ; flag: already patched
+        inc     byte [n_already]
+        jmp     .next
+.not_new:
+        mov     cx, [si+4]
+        mov     di, [si+6]
+        call    cmp_buf
+        jne     .bad
+.next:
+        add     si, 11
+        jmp     .v
+.ok:
+        pop     si
+        clc
+        ret
+.bad:
+        pop     si
+        stc
+        ret
+
 ; seek_site: SI -> patch entry; seeks h_exe to its file offset
 seek_site:
         mov     bx, [h_exe]
@@ -211,19 +244,27 @@ fn_bak  db 'AL.BAK',0
 h_exe   dw 0
 h_bak   dw 0
 n_already db 0
+tab_ptr dw tab_list
+cur_tab dw 0
 
 msg_banner  db 'ALFIX - Alien Legacy: mass-driver fixes + autosave',13,10,'$'
+msg_v101    db 'Detected v1.01: mass-driver fixes + autosave.',13,10,'$'
+msg_v110    db 'Detected v1.10: mass-driver fixes (autosave not available for v1.10 yet).',13,10,'$'
 msg_backup  db 'Backup written: AL.BAK',13,10,'$'
 msg_done    db 'AL.EXE patched. You are good to go.',13,10,'$'
 msg_already db 'AL.EXE is already patched. Nothing to do.',13,10,'$'
-msg_mismatch db 'This AL.EXE does not match the expected v1.01 build.',13,10
+msg_mismatch db 'This AL.EXE does not match the expected v1.01 or v1.10 build.',13,10
              db 'Nothing was changed.',13,10,'$'
 msg_ioerr   db 'File error. Nothing (or only part) was changed - restore AL.BAK if present.',13,10,'$'
 msg_noexe   db 'AL.EXE not found. Run ALFIX from the Alien Legacy folder.',13,10,'$'
 
-NPATCH  equ 8
+tab_list dw patch_table, patch_table_110, 0
+
+; table header: db entry_count ; dw detected_msg
 ; entry: dd file_offset ; dw len ; dw old_ptr ; dw new_ptr ; db already_flag
-patch_table:
+patch_table:                            ; v1.01
+        db 8
+        dw msg_v101
         dd PAGES+2E5B7h
         dw 11, p1_old, p1_new
         db 0
@@ -250,6 +291,26 @@ patch_table:
         db 0
         dw 0                            ; terminator
 
+patch_table_110:                        ; v1.10 (bug fixes only)
+        db 5
+        dw msg_v110
+        dd PAGES110+42F4Bh
+        dw 11, q1_old, q1_new
+        db 0
+        dd PAGES110+42F28h
+        dw 8, p2_old, p2_new
+        db 0
+        dd PAGES110+42F7Dh
+        dw 8, p2_old, p2_new
+        db 0
+        dd PAGES110+3F15Eh              ; same code as v1.01 minus the final mov edx,eax
+        dw 16, p4_old, p4_new
+        db 0
+        dd PAGES110+42A3Ah
+        dw 44, q5_old, q5_new
+        db 0
+        dw 0                            ; terminator
+
 p1_old  db 83h,0FAh,04h, 7Ch,3Fh, 8Dh,42h,0FCh, 6Bh,0D0h,0Eh
 p1_new  db 83h,0EAh,04h, 83h,0FAh,0Fh, 73h,3Ch, 6Bh,0D2h,0Eh
 p2_old  db 89h,44h,24h,34h, 8Bh,6Ch,24h,34h
@@ -271,6 +332,12 @@ p7_new  db 9Ch, 60h, 0FCh, 0E8h, 00h, 00h, 00h, 00h, 5Bh, 81h, 0EBh, 88h, 8Dh, 0
         db 59h, 5Bh, 0C3h, 90h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h
 p8_old  db 68h,8Dh,05h,00h
 p8_new  db 00h,90h,05h,00h
+
+; v1.10 sites whose code differs from v1.01
+q1_old  db 83h,0FAh,04h, 7Ch,40h, 8Dh,42h,0FCh, 6Bh,0C0h,0Eh
+q1_new  db 83h,0EAh,04h, 83h,0FAh,0Fh, 73h,3Dh, 6Bh,0C2h,0Eh
+q5_old  db 83h, 0FDh, 04h, 7Dh, 0Dh, 6Bh, 0C3h, 34h, 66h, 8Bh, 84h, 06h, 0D6h, 8Ah, 00h, 00h, 0EBh, 1Ah, 8Dh, 45h, 0FCh, 89h, 04h, 24h, 8Bh, 2Ch, 24h, 8Dh, 04h, 0C5h, 00h, 00h, 00h, 00h, 29h, 0E8h, 66h, 8Bh, 84h, 46h, 3Eh, 95h, 00h, 00h
+q5_new  db 8Dh, 45h, 0FCh, 83h, 0F8h, 0Eh, 77h, 15h, 89h, 0C5h, 8Dh, 04h, 0C5h, 00h, 00h, 00h, 00h, 29h, 0E8h, 66h, 8Bh, 84h, 46h, 3Eh, 95h, 00h, 00h, 0EBh, 0Fh, 6Bh, 0C3h, 34h, 66h, 8Bh, 84h, 06h, 0D6h, 8Ah, 00h, 00h, 90h, 90h, 90h, 90h
 
 buf     times 256 db 0
 copybuf:                                ; 32K copy buffer lives past the end of the image

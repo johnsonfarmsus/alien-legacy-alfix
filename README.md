@@ -1,6 +1,7 @@
 # ALFIX — Alien Legacy mass-driver fixes + autosave
 
-A patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01). It does three things:
+A patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01 and v1.10). It does
+three things (the autosave is v1.01 only for now):
 
 1. **Fixes the game's best-known crash.** Once a colony has a mass driver aimed at
    certain destinations, the game dies whenever the clock advances:
@@ -28,11 +29,12 @@ it is about to change.
 
 | | mass-driver fixes | autosave |
 |---|:---:|:---:|
-| **Standard** (`ALFIX.COM`, or `python3 alfix.py`) | yes | yes |
+| **Standard** (`ALFIX.COM`, or `python3 alfix.py`) | yes | yes (v1.01 only) |
 | **Fixes only** (`python3 alfix.py --no-autosave`) | yes | no |
 
 Running the patcher on an executable that already has the fixes-only edition
-upgrades it to standard.
+upgrades it to standard. On v1.10 both editions currently apply the fixes only;
+the patcher says so.
 
 ## How to apply
 
@@ -64,12 +66,18 @@ python3 alfix.py --fix-saves            # (from the game folder; or pass the SAV
 ```
 
 which resets every online mass driver with a garbage countdown to the correct
-6-turn cycle, keeping the untouched saves in `SAVES/BACKUP/`.
+6-turn cycle, keeping the untouched saves in `SAVES/BACKUP/`. `--fix-saves` knows
+the v1.01 save layout only (it skips files of any other size); on v1.10 use the
+offline/online toggle instead.
 
-**Versions.** Built and tested against the v1.01 CD executable
-(`AL.EXE`, 827,647 bytes, MD5 `fb004009cb1dd703a143a5d9775c5b8c`).
-Standard edition result: MD5 `a1998a1e69f2454a5959c2bcea5f9dae`;
-fixes only: `9644652f2e9c2b64fb04c5b580f7d010`.
+**Versions.** Both patchers detect the version by checking every patch site, and
+work on either supported build:
+
+| build | `AL.EXE` | original MD5 | standard | fixes only |
+|---|---|---|---|---|
+| v1.01 CD | 827,647 bytes | `fb004009cb1dd703a143a5d9775c5b8c` | `a1998a1e69f2454a5959c2bcea5f9dae` | `9644652f2e9c2b64fb04c5b580f7d010` |
+| v1.10 CD (`AL_CD_V1.10`, March 1995) | 936,827 bytes | `e6c78d883eb7972bc4c69098cdeff971` | (fixes only for now) | `4ca4f029fbbe20bfb4ece0f1bccfd3fc` |
+
 If your `AL.EXE` differs (another release or a floppy version) the patcher will
 say so and change nothing; please open an issue with your file's size and MD5.
 
@@ -123,7 +131,7 @@ code, so the original programmers guarded most of these lookups and missed two.
 
 Bug fixes: five in-place edits, same length as the original code, so nothing else
 moves. Autosave: the 6-byte hook, the 152-byte cave and the 4-byte header edit
-described above. Offsets are relative to LE object 1; add `0x3E324` for the file offset.
+described above. Offsets are relative to LE object 1; add `0x3E324` for the file offset (v1.01; v1.10 is below).
 
 | obj1 offset | original | patched | effect |
 |---|---|---|---|
@@ -135,6 +143,30 @@ described above. Offsets are relative to LE object 1; add `0x3E324` for the file
 | `0x2E0A1` | `83FE04 7D18 8D04AD00000000 29E8 C1E002 01E8 668B8482D68A0000 EB16 8D46FC 890424 8B3424 C1E003 29F0 668B84423E950000` | `8D46FC 83F80E 7711 89C6 C1E003 29F0 668B84423E950000 EB1A 8D04AD00000000 29E8 C1E002 01E8 668B8482D68A0000 90909090` | The countdown loader's branch selector, rewritten (51 bytes, 4 spare) so that `(product-4)` is compared unsigned against 14: codes 4..18 use `PROD.DAT` as before, everything else (including mass-driver destinations) uses the installation's own `INST.DAT` cycle. Mass drivers now fire every 6 turns. |
 
 For every valid product code the patched code behaves identically to the original.
+
+### v1.10
+
+Sierra's v1.10 release (March 1995) did not fix any of this: its release notes don't
+mention mass drivers, and the code still has the same unchecked lookups and unguarded
+divisions. The code moved (LE object 1 now starts at file offset `0x1EA00`) and two
+sites are compiled with different registers, so they are re-encoded. Same fixes,
+same lengths:
+
+| obj1 offset | v1.01 equivalent | original | patched |
+|---|---|---|---|
+| `0x42F4B` | `0x2E5B7` | `83FA04 7C40 8D42FC 6BC00E` | `83EA04 83FA0F 733D 6BC20E` (`imul eax,edx,14`: v1.10 keeps the row offset in `eax`) |
+| `0x42F28` | `0x2E594` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` (identical) |
+| `0x42F7D` | `0x2E5E8` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` (identical) |
+| `0x3F15E` | `0x2A89C` | `31FF 668BB83E950000 89D0 C1FA1F F7FF` | `0FB7B83E950000 92 99 85FF 7501 47 F7FF` (the first 16 bytes of the v1.01 edit; the instruction after it differs in v1.10 and is left alone) |
+| `0x42A3A` | `0x2E0A1` | `83FD04 7D0D 6BC334 668B8406D68A0000 EB1A 8D45FC 890424 8B2C24 8D04C500000000 29E8 668B84463E950000` | `8D45FC 83F80E 7715 89C5 8D04C500000000 29E8 668B84463E950000 EB0F 6BC334 668B8406D68A0000 90909090` (44 bytes; v1.10 holds the product in `ebp` and the kind in `ebx`) |
+
+The other three divisions in v1.10's cost routine are safe, as in v1.01: one is reached
+only for product code 4 exactly, one only for installation kinds 0x16/0x19/0x1A, and
+one already checks for zero.
+
+The autosave isn't ported to v1.10 yet: the slack after object 1 isn't empty padding
+there, so it needs a different code cave, and the save routine and turn-tick method
+still have to be located.
 
 ## How the autosave works
 
@@ -171,7 +203,7 @@ nasm -f bin alfix.asm -o ALFIX.COM
 ```
 
 `alfix.asm` is plain 8086 code using only DOS INT 21h calls; the resulting
-`ALFIX.COM` is about 1.6 KB. MD5 of the included build: `31725fc5a11eae64bd70ea18170e4fe2`.
+`ALFIX.COM` is about 2 KB. MD5 of the included build: `6c887208c5898830a3f3529cdc00ee7a`.
 The autosave routine is built separately with `nasm -f bin autosave.asm -o autosave.bin`;
 its bytes are embedded in both patchers.
 
