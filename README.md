@@ -1,7 +1,7 @@
 # ALFIX — Alien Legacy mass-driver fixes + autosave
 
 A patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01 and v1.10). It does
-three things (the autosave is v1.01 only for now):
+three things:
 
 1. **Fixes the game's best-known crash.** Once a colony has a mass driver aimed at
    certain destinations, the game dies whenever the clock advances:
@@ -29,12 +29,11 @@ it is about to change.
 
 | | mass-driver fixes | autosave |
 |---|:---:|:---:|
-| **Standard** (`ALFIX.COM`, or `python3 alfix.py`) | yes | yes (v1.01 only) |
+| **Standard** (`ALFIX.COM`, or `python3 alfix.py`) | yes | yes |
 | **Fixes only** (`python3 alfix.py --no-autosave`) | yes | no |
 
 Running the patcher on an executable that already has the fixes-only edition
-upgrades it to standard. On v1.10 both editions currently apply the fixes only;
-the patcher says so.
+upgrades it to standard.
 
 ## How to apply
 
@@ -76,7 +75,7 @@ work on either supported build:
 | build | `AL.EXE` | original MD5 | standard | fixes only |
 |---|---|---|---|---|
 | v1.01 CD | 827,647 bytes | `fb004009cb1dd703a143a5d9775c5b8c` | `a1998a1e69f2454a5959c2bcea5f9dae` | `9644652f2e9c2b64fb04c5b580f7d010` |
-| v1.10 CD (`AL_CD_V1.10`, March 1995) | 936,827 bytes | `e6c78d883eb7972bc4c69098cdeff971` | (fixes only for now) | `4ca4f029fbbe20bfb4ece0f1bccfd3fc` |
+| v1.10 CD (`AL_CD_V1.10`, March 1995) | 936,827 bytes | `e6c78d883eb7972bc4c69098cdeff971` | `0542c76f5d0c7d818ce944a3d292c10f` | `4ca4f029fbbe20bfb4ece0f1bccfd3fc` |
 
 If your `AL.EXE` differs (another release or a floppy version) the patcher will
 say so and change nothing; please open an issue with your file's size and MD5.
@@ -164,9 +163,7 @@ The other three divisions in v1.10's cost routine are safe, as in v1.01: one is 
 only for product code 4 exactly, one only for installation kinds 0x16/0x19/0x1A, and
 one already checks for zero.
 
-The autosave isn't ported to v1.10 yet: the slack after object 1 isn't empty padding
-there, so it needs a different code cave, and the save routine and turn-tick method
-still have to be located.
+The autosave edits for v1.10 are listed in the next section.
 
 ## How the autosave works
 
@@ -190,6 +187,32 @@ Tested by driving the game under DOSBox from a turn-4487 save: `AUTO3` was writt
 at turn 4600, `AUTO4` at 4800, `AUTO5` at 5000 and `AUTO1` at 5200, each a normal
 213,605-byte save that loads from the Load Game screen.
 
+### v1.10
+
+v1.10 has the same file-manager object, compiled the same way, so the cave code is
+unchanged apart from its addresses (`nasm -f bin -DV110 autosave.asm`). The method
+table is filled in at `0x2F6F0`: the save routine is slot `+0x08`, the turn-tick
+method slot `+0x18`.
+
+| | v1.01 | v1.10 |
+|---|---|---|
+| save routine | `0x40DF0` | `0x2F8D0` |
+| save-name address (imm32) | `0x40E08` | `0x2F8E8` (`mov esi,save_name`; obj2 `0x39A84`) |
+| turn-tick method | `0x41448` | `0x2FF50` |
+| turn-counter address (imm32) | `0x4145A` | `0x2FF62` (`mov edx,[turn]`; obj2 `0x35F50`) |
+| hooked epilogue `5D5F5E595BC3` | `0x41523` | `0x3002B`, becomes `E960A70300 90` |
+| code cave (152 bytes) | `0x58D80` | `0x6A790` |
+| LE header, object 1 size | file `0x28780`: `0x58D68` → `0x59000` | file `0x29168`: `0x6A788` → `0x6B000` |
+
+As in v1.01, no fixup touches the 6-byte epilogue or the cave, and nothing else in
+the game references the 16 bytes after the save-name string that the routine saves
+and restores.
+
+Tested on v1.10 under DOSBox from a new game with a manual save `TEST` at turn 2:
+`AUTO1` was written at turn 200 and `AUTO2` at turn 400 (the turn counter is the
+dword at offset 1 of a save), each a normal 215,765-byte save that loads from the
+Load Game screen, and the player's save name was still `TEST` afterwards.
+
 ## Not an emulator problem
 
 This was first suspected to be a DOSBox-X dynamic-core issue on Apple Silicon.
@@ -203,9 +226,9 @@ nasm -f bin alfix.asm -o ALFIX.COM
 ```
 
 `alfix.asm` is plain 8086 code using only DOS INT 21h calls; the resulting
-`ALFIX.COM` is about 2 KB. MD5 of the included build: `6c887208c5898830a3f3529cdc00ee7a`.
-The autosave routine is built separately with `nasm -f bin autosave.asm -o autosave.bin`;
-its bytes are embedded in both patchers.
+`ALFIX.COM` is about 2 KB. MD5 of the included build: `9191148c04bcc50455fae89814ec8dfd`.
+The autosave routine is built separately with `nasm -f bin autosave.asm -o autosave.bin`
+(add `-DV110` for v1.10); its bytes are embedded in both patchers.
 
 ## Campaign guide
 

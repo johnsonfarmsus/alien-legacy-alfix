@@ -3,8 +3,7 @@
 # Copyright (C) 2026 Trevor Johnson
 """
 alfix.py -- Alien Legacy (DOS, v1.01 and v1.10): fixes the mass-driver divide-by-zero crash
-and mass drivers that never deliver, and adds an in-game autosave (every 200 turns, AUTO1-5;
-v1.01 only for now).
+and mass drivers that never deliver, and adds an in-game autosave (every 200 turns, AUTO1-5).
 
     DOS/4GW Professional error (2001): exception 00h (divide by zero) at 180:001F75F5
 
@@ -73,6 +72,15 @@ PATCHES_110 = [
      "bounds-check the product code when (re)loading an installation's countdown, so mass drivers get their 6-turn cycle from INST.DAT"),
 ]
 
+AUTOSAVE_PATCHES_110 = [
+    (0x3002B, "5d5f5e595bc3", "e960a7030090",
+     "autosave: hook the turn-tick epilogue (jmp to the cave)"),
+    (0x6A790, "00" * 152, "9c60fce8000000005b81eb98a706008bb362ff02008b063b8314a80600745c31d2b9c8000000f7f185d2754f8b0e898b14a806004831d2b905000000f7f18bb3e8f80200568dbb18a80600b904000000f3a55fc7074155544f80c231885704c6470500e8d850fcff8db318a806008bbbe8f80200b904000000f3a5619d5d5f5e595bc3900000000000000000000000000000000000000000",
+     "autosave: the code cave (turn % 200 == 0 -> save AUTOn)"),
+    (-0x29168, "88a70600", "00b00600",
+     "autosave: LE header, object 1 size 0x6A788 -> 0x6B000 so the cave page is fully mapped"),
+]
+
 VERSIONS = [
     dict(name="v1.01", pages=0x3E324,  # file offset of LE object 1, page 0 (verified against the fixup table)
          orig_md5="fb004009cb1dd703a143a5d9775c5b8c",
@@ -81,8 +89,8 @@ VERSIONS = [
          md5_fixes="9644652f2e9c2b64fb04c5b580f7d010"),   # bug fixes only (--no-autosave)
     dict(name="v1.10", pages=0x45054,  # embedded MZ at 0x26654 + LE data-pages offset 0x1EA00
          orig_md5="e6c78d883eb7972bc4c69098cdeff971",
-         fixes=PATCHES_110, autosave=None,                # autosave not ported to v1.10 yet
-         md5_full=None,
+         fixes=PATCHES_110, autosave=AUTOSAVE_PATCHES_110,
+         md5_full="0542c76f5d0c7d818ce944a3d292c10f",
          md5_fixes="4ca4f029fbbe20bfb4ece0f1bccfd3fc"),
 ]
 
