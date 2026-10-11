@@ -207,17 +207,24 @@ nasm -f bin alfix.asm -o ALFIX.COM
 The autosave routine is built separately with `nasm -f bin autosave.asm -o autosave.bin`;
 its bytes are embedded in both patchers.
 
-## Research tree
+## Campaign guide
 
-`techtree.py` builds a browsable page of the game's research tree from your own game
-files: all 60 technologies with their effect, the seven science levels each needs,
-research cost, the prerequisites the game enforces, and the in-game lab reports and
-encyclopedia text. Like the patcher, it ships no game content; the page is made locally.
+`guide.py` builds a browsable campaign guide from your own game files: all 60
+technologies with their effect, the seven science levels each needs, research cost,
+the prerequisites the game enforces, the factory or power-plant level each upgrade
+unlocks, and the in-game lab reports and encyclopedia text; the technologies the story
+depends on; and when each of the 27 cinematics plays. Like the patcher, it ships no
+game content; the page is made locally.
 
 ```
-python3 techtree.py                       # from the game folder; writes techtree.html
-python3 techtree.py GAME_DIR OUT.html
+python3 guide.py                          # from the game folder; writes guide.html
+python3 guide.py GAME_DIR OUT.html
 ```
+
+The story and cinematic sections are written from an analysis of the game's event
+scripts. Each `RESOURCE.0xx` file is a small compiled module (32-byte `MZ` header, then
+32-bit code) that the game calls with a table of about 150 callback functions; one of
+them schedules `?:cinema.NNN`. Films 4, 6, 10, 21 and 27 aren't played by any event.
 
 `TECH.DAT` and `TECHTXT.DAT` are byte-identical in v1.01 and v1.10, so the page is the
 same for both.

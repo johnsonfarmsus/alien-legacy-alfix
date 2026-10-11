@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """
-techtree.py -- build a browsable reference page of Alien Legacy's research tree
-from your own copy of the game (TECH.DAT and TECHTXT.DAT; identical in v1.01 and v1.10).
+guide.py -- build a browsable Alien Legacy campaign guide (research tree, story-critical
+technologies, cinematic triggers) from your own copy of the game (TECH.DAT and
+TECHTXT.DAT; identical in v1.01 and v1.10).
 
-Usage:  python3 techtree.py [GAME_DIR] [OUT.html]
-        GAME_DIR defaults to the folder this script is in; OUT defaults to techtree.html
+Usage:  python3 guide.py [GAME_DIR] [OUT.html]
+        GAME_DIR defaults to the folder this script is in; OUT defaults to guide.html
         in the current directory.
 
 No game text is distributed with this script: the page is built locally from the
-game files you already have. File formats: see README.md, "Research tree".
+game files you already have. File formats: see README.md, "Campaign guide".
 """
 import json, os, struct, sys
 
@@ -74,7 +75,7 @@ NAMES = {
     85: "MacroStructure Stabilizer", 90: "Specter Engine",
 }
 gamedir = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
-out = sys.argv[2] if len(sys.argv) > 2 else "techtree.html"
+out = sys.argv[2] if len(sys.argv) > 2 else "guide.html"
 rows = decode(gamedir)
 
 data = []
@@ -91,7 +92,7 @@ for r in rows:
     ))
 blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
 
-HTML = r"""<title>Alien Legacy Research Tree</title>
+HTML = r"""<title>Alien Legacy Campaign Guide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -147,6 +148,22 @@ section { display: grid; gap: 16px; }
 .recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; }
 .recipe .note { font-size: 13px; color: var(--muted); font-style: italic; }
 .fix { margin: 0; font-size: 13px; color: var(--muted); border-left: 2px solid var(--accent); padding-left: 10px; }
+.story-line { margin: 0; font-size: 13px; }
+.story-line b { font-family: var(--mono); font-weight: 500; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); margin-right: 6px; }
+h3.sub { font-size: 16px; font-weight: 600; margin-top: 8px; }
+.story-techs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 10px; }
+.story-tech { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid; gap: 4px; font-size: 14px; }
+.story-tech .tn { font-family: var(--display); font-weight: 600; font-size: 16px; }
+.story-tech .fl { font: 12px var(--mono); color: var(--muted); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+table.films { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+.films th, .films td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.films th { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.films tr:last-child td { border-bottom: 0; }
+.films td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.films td.src { font: 12px var(--mono); color: var(--muted); }
+.films tr.quiet td { color: var(--muted); }
+.conf { display: inline-block; font: 500 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-left: 6px; }
 .recipe { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; }
 .recipe .in { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 14px; }
 .recipe .plus { color: var(--muted); font-family: var(--mono); }
@@ -192,9 +209,9 @@ details p em { font-style: normal; font: 500 11px var(--mono); letter-spacing: .
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">Alien Legacy · CALYPSO research labs</div>
-    <h1>Research Tree</h1>
-    <p>Every technology the colonists of Beta Caeli can research, decoded from the game's own <code>TECH.DAT</code> and <code>TECHTXT.DAT</code> (identical in versions 1.01 and 1.10). Each card shows what the technology does, how much of each science it demands, what it requires and what it opens up, with the lab reports and encyclopedia text from the game.</p>
+    <div class="eyebrow">Alien Legacy · CALYPSO mission records</div>
+    <h1>Campaign Guide</h1>
+    <p>The research tree and the story of the Beta Caeli campaign, decoded from the game itself (versions 1.01 and 1.10). It covers which technologies the plot depends on, when each of the 27 cinematics plays, and every technology the colonists can research, with the lab reports and encyclopedia text from the game.</p>
     <div class="stats" id="stats"></div>
   </header>
 
@@ -202,6 +219,18 @@ details p em { font-style: normal; font: 500 11px var(--mono); letter-spacing: .
     <h2 id="h-chains">Breakthroughs</h2>
     <p class="lede">Most technologies only need enough science. These are the ones the game also gates on earlier discoveries: research everything on the left before the lab can start on the right.</p>
     <div class="groups" id="recipes"></div>
+  </section>
+
+  <section aria-labelledby="h-story">
+    <h2 id="h-story">Story and cinematics</h2>
+    <p class="lede">The plot runs on about 80 small event scripts (the <code>RESOURCE.0xx</code> files), each compiled code that the game loads and calls. They check technologies, start crises, queue advisor messages and play the <code>CINEMA.0xx</code> films. These technologies are the ones the crises turn on.</p>
+    <div class="story-techs" id="story"></div>
+    <h3 class="sub">When each cinematic plays</h3>
+    <div class="table-wrap"><table class="films">
+      <thead><tr><th scope="col">Film</th><th scope="col">Shows</th><th scope="col">Plays when</th><th scope="col">Triggered by</th></tr></thead>
+      <tbody id="films"></tbody>
+    </table></div>
+    <p class="lede">Other video files: <code>INTRO.DVF</code> is the opening; <code>VIDEO.000</code>–<code>.040</code> are the advisors' talking heads, chosen by which advisor is speaking; <code>ANIM.*</code> are animations used on the planet and space screens.</p>
   </section>
 
   <section aria-labelledby="h-cat">
@@ -229,6 +258,7 @@ details p em { font-style: normal; font: 500 11px var(--mono); letter-spacing: .
       <li><b>Kinds</b> are the record's first byte. The labels are inferred from the effect lines: <i>Upgrade</i> improves factories, power plants, spacecraft or sensors; <i>Component</i> is a theory or material that "may help improve" later upgrades; <i>Special</i> is a story device; <i>Weapon</i> is the single missile technology.</li>
       <li><b>Unlocked levels</b> come from the game code, not the data files. When research completes, <code>AL.EXE</code> raises the factory level for the Delton Ore Refiner, Self-Malleable Die-Casting, Black Hole Furnace, Shindra Auto-Processor and Stinson Replicator (levels 2 to 6), and the power-plant level for the Trionide Solenoid, Solar Collector, Banos Superconductor, Tien-Shou Battery and Vincenzo Quark Cage. The Shindra Auto-Processor's effect line in the game is wrong: it upgrades factories.</li>
       <li><b>Research cost</b> is the raw value from the record. Its unit isn't documented; it grows steadily through the tree.</li>
+      <li><b>Story and cinematics</b> come from the event scripts. Each <code>RESOURCE.0xx</code> file is a small compiled module that calls back into the game through a table of about 150 functions. One of them, which stores a number and has the game play <code>?:cinema.NNN</code> on its next tick, is how the scripts play films; the game itself plays films 7, 17, 18 and 19 after combat. Films marked probable are where the branch was read from the code but what it tests (an Energy Pulsor count; which of two back-to-back films shows what) is inferred. Films 4, 6, 10, 21 and 27 aren't played by any event; they are probably reached only from the PDA library, whose entries carry their own film numbers.</li>
       <li>Prerequisites shown are only those the record enforces. The encyclopedia often mentions other parts too (the Electron Damper "uses the unique properties of the Bi-Focaline Crystal"), but the game doesn't require them.</li>
     </ul>
   </section>
@@ -264,7 +294,53 @@ const GROUPS = [
   ["Power plants", "Power-plant energy output.", t => LEVELS[t.rec] ? LEVELS[t.rec][0] === "Power plant" : /power plant/i.test(t.effect)],
   ["Other", "Story devices.", t => true],
 ];
-const NOTE = {66: "The game's effect line says power plants, but completing it raises the factory level to 5 and leaves power plants alone. Its lab and encyclopedia text describe factory robots."};
+// Story roles, from the event scripts (RESOURCE.0xx) that test each technology: [role, films].
+const STORY = {
+  1: ["Without it the crew dies of accelerated aging from the cryo trip; Dr. Tiptow needs a research lab on CALYPSO early on.", [1]],
+  2: ["Needed to find habitable sectors; the opening objectives use it to place the second colony on Gaea.", []],
+  13: ["Shields Gaea colonies from the hostile biota. Colonies lost to the biota end in the attack film.", [7]],
+  31: ["Protects colonies from meteor strikes: with one online the meteor is destroyed, without one the colony is hit.", [16, 24]],
+  26: ["Translates the alien messages found on the Gamma 1 sporeship and leads to the Transponder Muffler.", []],
+  38: ["Muffles the Gamma 1 signal that destroys robots, vehicles and eventually CALYPSO's hull.", [11, 14]],
+  40: ["Missiles: the way to destroy the Gamma 1 sporeship's weak spot and to fight the Empiant fleets.", [5, 13, 17, 18, 19]],
+  67: ["Destroys the sporeship, or, after it dives into Beta Caeli, is sent into the star to stop it going critical.", [13, 2]],
+  61: ["Its armor insulates the Inverse Fusion Reactor; without it the IFR fails in Beta Caeli's corona.", [2, 25, 3]],
+  73: ["Lets the colonists understand the telepathic Empiants.", []],
+  79: ["Delivered to Cronus, it ends the war with the Empiants and leads to the alliance.", [9]],
+  85: ["The four stabilizers on the Empiant superstructure that CALYPSO is sent through.", []],
+  90: ["Faster-than-light travel: the winning ending. A failed attempt can rupture CALYPSO's engines.", [22, 14]],
+};
+// The CINEMA.0xx films: [number, shows, plays when, triggered by, confidence].
+const FILMS = [
+  [1, "Command taken from you", "Game over by mutiny: neglecting Gaea's habitats, missing the first colony objectives, the crew riot after the cryo disaster, running out of energy a second time, the Tiptow aging, or massacring civilians in the Fanatic crisis", "RESOURCE.000, 001, 005, 008, 030, 087", "confirmed"],
+  [2, "The IFR launched into Beta Caeli", "Final crisis: the Inverse Fusion Reactor is sent into the star, by ship or teleported by the Empiants; the outcome follows", "RESOURCE.065", "confirmed"],
+  [3, "Beta Caeli goes critical (part 2)", "The losing end of the final crisis, straight after film 25", "RESOURCE.065", "probable"],
+  [4, "", "Not played by any event", "", "none"],
+  [5, "The sporeship dives into Beta Caeli", "Time runs out before Gamma 1 is destroyed; starts the final crisis", "RESOURCE.063", "confirmed"],
+  [6, "", "Not played by any event", "", "none"],
+  [7, "Gaea's lifeforms overrun a colony", "The biota destroy a colony on Gaea", "RESOURCE.051, game", "confirmed"],
+  [8, "Cryo-chamber explosion", "A power surge in CALYPSO's cryo-chambers kills sleepers and destroys resources", "RESOURCE.006", "confirmed"],
+  [9, "Peace with the Empiants", "The Theta Wave Scrambler is delivered to Cronus", "RESOURCE.070", "confirmed"],
+  [10, "", "Not played by any event", "", "none"],
+  [11, "A vehicle explodes", "A ship blows up in transit or orbit, robots near Gamma 1 fail under the signal, or the hull-examination team is lost", "RESOURCE.023, 061, 062, 064, 066", "confirmed"],
+  [12, "Gamma 1 revealed as a sporeship", "A power flux in the Beta asteroids after the signal source is found", "RESOURCE.063", "confirmed"],
+  [13, "The sporeship destroyed", "Missiles hit its weak spot, or the Inverse Fusion Reactor detonates", "RESOURCE.063", "confirmed"],
+  [14, "CALYPSO destroyed", "Game over: the Gamma 1 signal tears the hull, the sporeship's explosion catches CALYPSO, or a fusion-engine containment breach during the FTL attempt", "RESOURCE.062, 063, 083", "confirmed"],
+  [15, "A comet hits CALYPSO", "Random hazard: hull breach near the ore and energy stores", "RESOURCE.100", "confirmed"],
+  [16, "An Energy Pulsor destroys a meteor", "Meteor event at a colony with an Energy Pulsor online", "RESOURCE.021", "probable"],
+  [17, "Empiant attack", "Empiant ships emerge from Cronus to attack CALYPSO or a colony, and later Empiant fleet raids", "RESOURCE.070, game", "confirmed"],
+  [18, "Empiants defeat the defenders", "An Empiant raid where the defending ships lose", "game", "confirmed"],
+  [19, "Defenders destroy the Empiants", "An Empiant raid where the defending ships win", "game", "confirmed"],
+  [20, "Memory device recovered on Gamma 1", "The asteroid's memory device is retrieved; the clip is added to the PDA library", "RESOURCE.060", "confirmed"],
+  [21, "", "Not played by any event", "", "none"],
+  [22, "Victory", "Alliance with the Empiants and faster-than-light travel", "RESOURCE.080", "confirmed"],
+  [23, "Habitat explosion on Gaea", "Random hazard: an environmental-control explosion in a Gaea habitat", "RESOURCE.102", "confirmed"],
+  [24, "A meteor storm hits a colony", "Meteor event at a colony without a working Energy Pulsor", "RESOURCE.021", "probable"],
+  [25, "Beta Caeli goes critical (part 1)", "The sporeship has burrowed into the star and nothing has stopped it (\"CAPTAIN! LOOK!\")", "RESOURCE.065", "probable"],
+  [26, "Power-plant explosion on Gaea", "Random hazard: a Gaea power plant explodes and energy is lost", "RESOURCE.101", "confirmed"],
+  [27, "", "Not played by any event", "", "none"],
+];
+const NOTE = {66:"The game's effect line says power plants, but completing it raises the factory level to 5 and leaves power plants alone. Its lab and encyclopedia text describe factory robots."};
 const recipe = t =>
   `<div class="recipe"><div class="in">${t.pre.map(link).join('<span class="plus">+</span>')}</div>` +
   `<div class="out"><a class="tl" href="#t${t.rec}">${esc(t.name)}</a></div>` +
@@ -275,6 +351,15 @@ document.getElementById("recipes").innerHTML = GROUPS.map(([name, blurb, test]) 
   return mine.length ? `<div class="group"><h3>${name} <span>${mine.length}</span></h3><p>${blurb}</p>` +
     `<div class="recipes">${mine.map(recipe).join("")}</div></div>` : "";
 }).join("");
+
+const filmRef = n => `<a class="tl" href="#film${n}">${n}</a>`;
+document.getElementById("story").innerHTML = Object.entries(STORY).map(([rec, [role, films]]) =>
+  `<div class="story-tech"><div class="tn">${byRec[rec] ? link(+rec) : "#" + rec}</div><div>${esc(role)}</div>` +
+  (films.length ? `<div class="fl">Films ${films.map(filmRef).join(", ")}</div>` : "") + `</div>`).join("");
+const CONF = {confirmed: "", probable: '<span class="conf">probable</span>', none: ""};
+document.getElementById("films").innerHTML = FILMS.map(([n, shows, when, src, conf]) =>
+  `<tr id="film${n}" class="${conf === "none" ? "quiet" : ""}"><td class="n">CINEMA.${String(n).padStart(3, "0")}</td>` +
+  `<td>${esc(shows) || "—"}${CONF[conf]}</td><td>${esc(when)}</td><td class="src">${esc(src)}</td></tr>`).join("");
 
 const active = new Set(kinds);
 document.getElementById("types").innerHTML = kinds.map(k =>
@@ -297,6 +382,7 @@ function card(t) {
   return `<article class="card" id="t${t.rec}" style="--tc:var(${kvar})">
     <div class="head"><div><div class="type">${kname}</div><h3>${esc(t.name)}</h3></div><span class="meta">#${t.rec}</span></div>
     <p class="effect">${esc(t.effect)}</p>
+    ${STORY[t.rec] ? `<p class="story-line"><b>Story</b>${esc(STORY[t.rec][0])}</p>` : ""}
     ${NOTE[t.rec] ? `<p class="fix">${esc(NOTE[t.rec])}</p>` : ""}
     <div class="sci">${cells}<div class="cost" title="Research cost"><small>Cost</small>${t.cost}</div></div>
     ${links ? `<div class="links">${links}</div>` : ""}
