@@ -139,7 +139,14 @@ header p { margin: 0; color: var(--muted); }
 section { display: grid; gap: 16px; }
 .lede { margin: 0; color: var(--muted); max-width: 68ch; }
 
-.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.groups { display: grid; gap: 22px; }
+.group { display: grid; gap: 8px; }
+.group h3 { font-size: 15px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; display: flex; gap: 8px; align-items: baseline; }
+.group h3 span { font: 12px var(--mono); color: var(--muted); letter-spacing: 0; }
+.group > p { margin: 0; color: var(--muted); font-size: 14px; }
+.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; }
+.recipe .note { font-size: 13px; color: var(--muted); font-style: italic; }
+.fix { margin: 0; font-size: 13px; color: var(--muted); border-left: 2px solid var(--accent); padding-left: 10px; }
 .recipe { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; }
 .recipe .in { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 14px; }
 .recipe .plus { color: var(--muted); font-family: var(--mono); }
@@ -194,7 +201,7 @@ details p em { font-style: normal; font: 500 11px var(--mono); letter-spacing: .
   <section aria-labelledby="h-chains">
     <h2 id="h-chains">Breakthroughs</h2>
     <p class="lede">Most technologies only need enough science. These are the ones the game also gates on earlier discoveries: research everything on the left before the lab can start on the right.</p>
-    <div class="recipes" id="recipes"></div>
+    <div class="groups" id="recipes"></div>
   </section>
 
   <section aria-labelledby="h-cat">
@@ -220,6 +227,7 @@ details p em { font-style: normal; font: 500 11px var(--mono); letter-spacing: .
       <li><b>Names</b> aren't stored as text anywhere in the game files (the menus draw them from elsewhere), so each name here is taken from the opening of the technology's encyclopedia entry.</li>
       <li><b>Sciences.</b> The order Astronomy, Geology, Electronics, Chemistry, Biology, Mathematics, Physics is inferred from which column each technology leans on (the plague and the mushroom synthesizer on Biology, the Translation Constant on Mathematics, the black-hole and orbital devices on Astronomy). The game has exactly these seven science text files.</li>
       <li><b>Kinds</b> are the record's first byte. The labels are inferred from the effect lines: <i>Upgrade</i> improves factories, power plants, spacecraft or sensors; <i>Component</i> is a theory or material that "may help improve" later upgrades; <i>Special</i> is a story device; <i>Weapon</i> is the single missile technology.</li>
+      <li><b>Unlocked levels</b> come from the game code, not the data files. When research completes, <code>AL.EXE</code> raises the factory level for the Delton Ore Refiner, Self-Malleable Die-Casting, Black Hole Furnace, Shindra Auto-Processor and Stinson Replicator (levels 2 to 6), and the power-plant level for the Trionide Solenoid, Solar Collector, Banos Superconductor, Tien-Shou Battery and Vincenzo Quark Cage. The Shindra Auto-Processor's effect line in the game is wrong: it upgrades factories.</li>
       <li><b>Research cost</b> is the raw value from the record. Its unit isn't documented; it grows steadily through the tree.</li>
       <li>Prerequisites shown are only those the record enforces. The encyclopedia often mentions other parts too (the Electron Damper "uses the unique properties of the Bi-Focaline Crystal"), but the game doesn't require them.</li>
     </ul>
@@ -244,9 +252,29 @@ document.getElementById("stats").innerHTML =
   kinds.map(k => `<span><b>${T.filter(t => t.type === k).length}</b> ${KIND[k][0].toLowerCase()}${k===1?"":"s"}</span>`).join("") +
   `<span><b>${T.filter(t => t.pre.length).length}</b> with prerequisites</span>`;
 
-document.getElementById("recipes").innerHTML = T.filter(t => t.pre.length).map(t =>
+// Installation levels set when research completes: the switch on the technology
+// record at obj1 0x307D3 in AL.EXE v1.10 writes the factory level (obj2 0x35D28)
+// and the power-plant level (obj2 0x35D1C).
+const LEVELS = {0: ["Factory", 2], 18: ["Factory", 3], 36: ["Factory", 4], 66: ["Factory", 5], 84: ["Factory", 6],
+                6: ["Power plant", 2], 30: ["Power plant", 3], 48: ["Power plant", 4], 60: ["Power plant", 5], 72: ["Power plant", 6]};
+// Breakthroughs grouped by what they improve: the level they set where the code says, else their effect line.
+const GROUPS = [
+  ["Vehicles", "Spacecraft engines and CALYPSO itself.", t => !LEVELS[t.rec] && /spacecraft|CALYPSO/i.test(t.effect)],
+  ["Factories", "Factory productivity.", t => LEVELS[t.rec] ? LEVELS[t.rec][0] === "Factory" : /factor/i.test(t.effect)],
+  ["Power plants", "Power-plant energy output.", t => LEVELS[t.rec] ? LEVELS[t.rec][0] === "Power plant" : /power plant/i.test(t.effect)],
+  ["Other", "Story devices.", t => true],
+];
+const NOTE = {66: "The game's effect line says power plants, but completing it raises the factory level to 5 and leaves power plants alone. Its lab and encyclopedia text describe factory robots."};
+const recipe = t =>
   `<div class="recipe"><div class="in">${t.pre.map(link).join('<span class="plus">+</span>')}</div>` +
-  `<div class="out"><a class="tl" href="#t${t.rec}">${esc(t.name)}</a></div></div>`).join("");
+  `<div class="out"><a class="tl" href="#t${t.rec}">${esc(t.name)}</a></div>` +
+  (NOTE[t.rec] ? `<div class="note">${esc(NOTE[t.rec])}</div>` : "") + `</div>`;
+let left = T.filter(t => t.pre.length);
+document.getElementById("recipes").innerHTML = GROUPS.map(([name, blurb, test]) => {
+  const mine = left.filter(test); left = left.filter(t => !mine.includes(t));
+  return mine.length ? `<div class="group"><h3>${name} <span>${mine.length}</span></h3><p>${blurb}</p>` +
+    `<div class="recipes">${mine.map(recipe).join("")}</div></div>` : "";
+}).join("");
 
 const active = new Set(kinds);
 document.getElementById("types").innerHTML = kinds.map(k =>
@@ -261,6 +289,7 @@ function card(t) {
   }).join("");
   const lt = leadsTo[t.rec] || [];
   const links = [
+    LEVELS[t.rec] ? `<span><b>Unlocks</b> ${LEVELS[t.rec][0]} level ${LEVELS[t.rec][1]}</span>` : "",
     t.pre.length ? `<span><b>Requires</b> ${t.pre.map(link).join(", ")}</span>` : "",
     lt.length ? `<span><b>Leads to</b> ${lt.map(link).join(", ")}</span>` : "",
   ].join("");
@@ -268,6 +297,7 @@ function card(t) {
   return `<article class="card" id="t${t.rec}" style="--tc:var(${kvar})">
     <div class="head"><div><div class="type">${kname}</div><h3>${esc(t.name)}</h3></div><span class="meta">#${t.rec}</span></div>
     <p class="effect">${esc(t.effect)}</p>
+    ${NOTE[t.rec] ? `<p class="fix">${esc(NOTE[t.rec])}</p>` : ""}
     <div class="sci">${cells}<div class="cost" title="Research cost"><small>Cost</small>${t.cost}</div></div>
     ${links ? `<div class="links">${links}</div>` : ""}
     <details><summary>Lab reports and encyclopedia</summary>
