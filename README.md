@@ -207,6 +207,39 @@ nasm -f bin alfix.asm -o ALFIX.COM
 The autosave routine is built separately with `nasm -f bin autosave.asm -o autosave.bin`;
 its bytes are embedded in both patchers.
 
+## Research tree
+
+`techtree.py` builds a browsable page of the game's research tree from your own game
+files: all 60 technologies with their effect, the seven science levels each needs,
+research cost, the prerequisites the game enforces, and the in-game lab reports and
+encyclopedia text. Like the patcher, it ships no game content; the page is made locally.
+
+```
+python3 techtree.py                       # from the game folder; writes techtree.html
+python3 techtree.py GAME_DIR OUT.html
+```
+
+`TECH.DAT` and `TECHTXT.DAT` are byte-identical in v1.01 and v1.10, so the page is the
+same for both.
+
+Formats, as decoded:
+
+- `TECHTXT.DAT` (and the other `*TXT.DAT` files): `u16` string count, `u16` 4, then
+  count+1 `u32` offsets (the last marks the end), then NUL-terminated strings.
+- `TECH.DAT`: 96 records of 25 bytes, 60 in use. Byte 0 is the kind (2 upgrade,
+  4 component or theory, 3 story device, 1 the missile technology); bytes 2–8 are the
+  science levels; bytes 9–11 are up to three prerequisite record numbers (`0x63` = none);
+  byte 12 is the research cost; bytes 13–24 are six `u16` indexes into `TECHTXT.DAT`:
+  effect line, "still needed" message, progress report, completion report, first
+  encyclopedia entry, encyclopedia entry.
+
+Two things are inferred rather than stored. Technology names aren't kept as text in
+the game files, so each comes from the opening of its encyclopedia entry. The science
+order (Astronomy, Geology, Electronics, Chemistry, Biology, Mathematics, Physics) is
+read off which level each technology leans on: the plague and the mushroom synthesizer
+on Biology, the Translation Constant on Mathematics, the black-hole and orbital devices
+on Astronomy.
+
 ## License
 
 The patchers, the assembly sources, and this write-up are © 2026 Trevor Johnson and
