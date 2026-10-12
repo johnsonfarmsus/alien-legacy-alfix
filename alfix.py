@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Trevor Johnson
 """
-alfix.py -- Alien Legacy (DOS, v1.01): fixes the mass-driver divide-by-zero crash and
-mass drivers that never deliver, and adds an in-game autosave (every 200 turns, AUTO1-5).
+alfix.py -- Alien Legacy (DOS, v1.01 and v1.10): fixes the mass-driver divide-by-zero crash
+and mass drivers that never deliver, and adds an in-game autosave (every 200 turns, AUTO1-5).
 
     DOS/4GW Professional error (2001): exception 00h (divide by zero) at 180:001F75F5
 
@@ -26,15 +26,12 @@ later version. It is distributed WITHOUT ANY WARRANTY; see the LICENSE file.
 """
 import hashlib, os, shutil, sys
 
-ORIG_MD5 = "fb004009cb1dd703a143a5d9775c5b8c"
-PATCHED_MD5 = "a1998a1e69f2454a5959c2bcea5f9dae"      # all patches incl. autosave
-PATCHED_MD5_NOAUTO = "9644652f2e9c2b64fb04c5b580f7d010"  # bug fixes only (--no-autosave)
-PAGES = 0x3E324  # file offset of LE object 1, page 0 (verified against the fixup table)
-
 # (object-1 offset, original bytes, patched bytes, description)
-# Entries with an offset >= 0 are LE object-1 offsets (file offset = PAGES + off);
+# Entries with an offset >= 0 are LE object-1 offsets (file offset = pages + off);
 # a negative offset -N means raw file offset N (used for the LE header edit).
-PATCHES = [
+
+# ---- v1.01 CD ----
+PATCHES_101 = [
     (0x2E5B7, "83fa047c3f8d42fc6bd00e", "83ea0483fa0f733c6bd20e",
      "bounds-check the PROD.DAT row index (product codes 4..18 only)"),
     (0x2E594, "894424348b6c2434", "89c585ed740d9090",
@@ -50,13 +47,51 @@ PATCHES = [
 ]
 
 # Optional feature: in-game autosave every 200 turns to AUTO1..AUTO5 (see README / autosave.asm)
-AUTOSAVE_PATCHES = [
+AUTOSAVE_PATCHES_101 = [
     (0x41523, "5d5f5e595bc3", "e95878010090",
      "autosave: hook the turn-tick epilogue (jmp to the cave)"),
     (0x58D80, "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "9c60fce8000000005b81eb888d05008bb35a1404008b063b83048e0500745c31d2b9c8000000f7f185d2754f8b0e898b048e05004831d2b905000000f7f18bb3080e0400568dbb088e0500b904000000f3a55fc7074155544f80c231885704c6470500e80880feff8db3088e05008bbb080e0400b904000000f3a5619d5d5f5e595bc3900000000000000000000000000000000000000000",
      "autosave: the code cave (turn % 200 == 0 -> save AUTOn)"),
     (-0x28780, "688d0500", "00900500",
      "autosave: LE header, object 1 size 0x58D68 -> 0x59000 so the cave page is fully mapped"),
+]
+
+# ---- v1.10 CD ----  (same bugs; the code moved and two sites use different registers)
+PATCHES_110 = [
+    (0x1C8F7, "83fa047c408d42fc6bc00e", "83ea0483fa0f733d6bc20e",
+     "bounds-check the PROD.DAT row index (product codes 4..18 only)"),
+    (0x1C8D4, "894424348b6c2434", "89c585ed740d9090",
+     "zero-divisor guard, 1st idiv in per-turn cost loop"),
+    (0x1C929, "894424348b6c2434", "89c585ed740d9090",
+     "zero-divisor guard, 2nd idiv in per-turn cost loop (the crash site)"),
+    (0x18B0A, "31ff668bb83e95000089d0c1fa1ff7ff", "0fb7b83e950000929985ff750147f7ff",
+     "zero-divisor guard in the installation cost display routine"),
+    (0x1C3E6,
+     "83fd047d0d6bc334668b8406d68a0000eb1a8d45fc8904248b2c248d04c50000000029e8668b84463e950000",
+     "8d45fc83f80e771589c58d04c50000000029e8668b84463e950000eb0f6bc334668b8406d68a000090909090",
+     "bounds-check the product code when (re)loading an installation's countdown, so mass drivers get their 6-turn cycle from INST.DAT"),
+]
+
+AUTOSAVE_PATCHES_110 = [
+    (0x3002B, "5d5f5e595bc3", "e960a7030090",
+     "autosave: hook the turn-tick epilogue (jmp to the cave)"),
+    (0x6A790, "00" * 152, "9c60fce8000000005b81eb98a706008bb362ff02008b063b8314a80600745c31d2b9c8000000f7f185d2754f8b0e898b14a806004831d2b905000000f7f18bb3e8f80200568dbb18a80600b904000000f3a55fc7074155544f80c231885704c6470500e8d850fcff8db318a806008bbbe8f80200b904000000f3a5619d5d5f5e595bc3900000000000000000000000000000000000000000",
+     "autosave: the code cave (turn % 200 == 0 -> save AUTOn)"),
+    (-0x29168, "88a70600", "00b00600",
+     "autosave: LE header, object 1 size 0x6A788 -> 0x6B000 so the cave page is fully mapped"),
+]
+
+VERSIONS = [
+    dict(name="v1.01", pages=0x3E324,  # file offset of LE object 1, page 0 (verified against the fixup table)
+         orig_md5="fb004009cb1dd703a143a5d9775c5b8c",
+         fixes=PATCHES_101, autosave=AUTOSAVE_PATCHES_101,
+         md5_full="a1998a1e69f2454a5959c2bcea5f9dae",     # all patches incl. autosave
+         md5_fixes="9644652f2e9c2b64fb04c5b580f7d010"),   # bug fixes only (--no-autosave)
+    dict(name="v1.10", pages=0x45054,  # embedded MZ at 0x26654 + LE data-pages offset 0x1EA00
+         orig_md5="e6c78d883eb7972bc4c69098cdeff971",
+         fixes=PATCHES_110, autosave=AUTOSAVE_PATCHES_110,
+         md5_full="0542c76f5d0c7d818ce944a3d292c10f",
+         md5_fixes="4ca4f029fbbe20bfb4ece0f1bccfd3fc"),
 ]
 
 
@@ -98,17 +133,29 @@ def fix_saves(argv):
             print(f"  {os.path.basename(fn)}: nothing to fix")
 
 
-def site(off):
-    return PAGES + off if off >= 0 else -off
+def site(ver, off):
+    return ver["pages"] + off if off >= 0 else -off
+
+
+def check(data, ver, patches):
+    """Return (todo, already) if every site holds its original or patched bytes, else None."""
+    todo, already = [], []
+    for off, old, new, desc in patches:
+        cur = bytes(data[site(ver, off): site(ver, off) + len(old) // 2]).hex()
+        if cur == new:
+            already.append(desc)
+        elif cur == old:
+            todo.append((off, old, new, desc))
+        else:
+            return None
+    return todo, already
 
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--fix-saves":
         return fix_saves(sys.argv[2:])
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    autosave = "--no-autosave" not in sys.argv
-    patches = PATCHES + (AUTOSAVE_PATCHES if autosave else [])
-    want_md5 = PATCHED_MD5 if autosave else PATCHED_MD5_NOAUTO
+    want_autosave = "--no-autosave" not in sys.argv
     path = args[0] if args else None
     if path is None:
         here = os.path.dirname(os.path.abspath(__file__))
@@ -121,25 +168,35 @@ def main():
 
     data = bytearray(open(path, "rb").read())
     md5 = hashlib.md5(data).hexdigest()
-    if md5 == want_md5:
+    known = {v[k]: v for v in VERSIONS for k in ("orig_md5", "md5_full", "md5_fixes") if v[k]}
+    if md5 not in known:
+        print(f"WARNING: {os.path.basename(path)} has an unexpected MD5 ({md5}).")
+        print("This patcher was built against the v1.01 and v1.10 CD executables:")
+        for v in VERSIONS:
+            print(f"  {v['name']}: md5 {v['orig_md5']}")
+        print("Checking whether the patch sites of a known version match...")
+
+    # pick the version whose sites all match (original or patched), before touching anything
+    candidates = [known[md5]] if md5 in known else VERSIONS
+    for ver in candidates:
+        autosave = want_autosave and ver["autosave"] is not None
+        patches = ver["fixes"] + (ver["autosave"] if autosave else [])
+        result = check(data, ver, patches)
+        if result is not None:
+            break
+    else:
+        sys.exit("ABORT: this executable doesn't match any supported version "
+                 f"({', '.join(v['name'] for v in VERSIONS)}). Nothing was changed.")
+    todo, already = result
+    print(f"detected Alien Legacy {ver['name']}")
+    if want_autosave and ver["autosave"] is None:
+        print(f"note: the autosave isn't available for {ver['name']} yet; applying the bug fixes only.")
+    want_md5 = ver["md5_full"] if autosave else ver["md5_fixes"]
+    if not todo:
         print(f"{os.path.basename(path)} is already patched. Nothing to do.")
         return
-    if md5 != ORIG_MD5:
-        print(f"WARNING: {os.path.basename(path)} has an unexpected MD5 ({md5}).")
-        print("This patcher was built against the v1.01 CD executable (md5 " + ORIG_MD5 + ").")
-        print("Checking whether the patch sites still match...")
-
-    # verify every site before touching anything
-    todo = []
-    for off, old, new, desc in patches:
-        cur = bytes(data[site(off): site(off) + len(old) // 2]).hex()
-        if cur == new:
-            print(f"  already patched: {desc}")
-        elif cur == old:
-            todo.append((off, old, new, desc))
-        else:
-            sys.exit(f"ABORT: bytes at object offset {off:#x} don't match this executable "
-                     f"(found {cur}, expected {old}). Nothing was changed.")
+    for desc in already:
+        print(f"  already patched: {desc}")
 
     backup = path + ".ORIG" if not path.lower().endswith(".orig") else path + ".bak"
     if not os.path.exists(backup):
@@ -147,7 +204,7 @@ def main():
         print(f"backup written: {os.path.basename(backup)}")
 
     for off, old, new, desc in todo:
-        data[site(off): site(off) + len(new) // 2] = bytes.fromhex(new)
+        data[site(ver, off): site(ver, off) + len(new) // 2] = bytes.fromhex(new)
         print(f"  patched: {desc}")
     open(path, "wb").write(data)
     print(f"done. {os.path.basename(path)} md5 is now {hashlib.md5(data).hexdigest()}")

@@ -1,29 +1,39 @@
-; autosave.asm -- in-game autosave for Alien Legacy (DOS v1.01), as a code cave
+; autosave.asm -- in-game autosave for Alien Legacy (DOS v1.01 and v1.10), as a code cave
 ; SPDX-License-Identifier: AGPL-3.0-or-later
 ; Copyright (C) 2026 Trevor Johnson
 ;
-; Build:  nasm -f bin autosave.asm -o autosave.bin
+; Build:  nasm -f bin autosave.asm -o autosave.bin             (v1.01)
+;         nasm -f bin -DV110 autosave.asm -o autosave110.bin   (v1.10)
 ; The bytes go at LE object-1 offset CAVE (unused zero padding at the end of the
-; code object).  The turn-tick method's epilogue at 0x41523 (pop ebp/edi/esi/ecx/
-; ebx/ret, 6 bytes) is replaced by "jmp CAVE" + nop, and the cave ends by
-; executing that same epilogue.
+; code object).  The turn-tick method's epilogue (pop ebp/edi/esi/ecx/ebx/ret,
+; 6 bytes; 0x41523 in v1.01, 0x3002B in v1.10) is replaced by "jmp CAVE" + nop,
+; and the cave ends by executing that same epilogue.
 ;
-; Every INTERVAL turns the game's own save routine (0x40DF0) is called with the
-; save-name global temporarily set to AUTO1..AUTO<SLOTS>, rotating.  The routine
-; needs no arguments and preserves all registers but EAX.
+; Every INTERVAL turns the game's own save routine (0x40DF0 / 0x2F8D0) is called
+; with the save-name global temporarily set to AUTO1..AUTO<SLOTS>, rotating.  The
+; routine needs no arguments and preserves all registers but EAX.
 ;
 ; The code is position independent: the game is relocated at load time, so
 ; absolute addresses are read from two already-relocated instructions:
-;   0x41458  mov edx,[turn_counter]   -> imm32 at 0x4145A
-;   0x40E07  mov esi,[save_name]      -> imm32 at 0x40E08
+;   v1.01  0x41458  mov edx,[turn_counter]   -> imm32 at 0x4145A
+;          0x40E07  mov esi,[save_name]      -> imm32 at 0x40E08
+;   v1.10  0x2FF60  mov edx,[turn_counter]   -> imm32 at 0x2FF62
+;          0x2F8E7  mov esi,save_name        -> imm32 at 0x2F8E8
 
         bits 32
         cpu 386
 
+%ifdef V110
+CAVE        equ 0x6A790         ; obj1 offset of this code
+SAVE_FN     equ 0x2F8D0         ; save routine (obj1 offset)
+TURN_IMM    equ 0x2FF62         ; relocated address of the turn counter lives here
+NAME_IMM    equ 0x2F8E8         ; relocated address of the save-name string lives here
+%else
 CAVE        equ 0x58D80         ; obj1 offset of this code
 SAVE_FN     equ 0x40DF0         ; save routine (obj1 offset)
 TURN_IMM    equ 0x4145A         ; relocated address of the turn counter lives here
 NAME_IMM    equ 0x40E08         ; relocated address of the save-name string lives here
+%endif
 INTERVAL    equ 200
 SLOTS       equ 5
 

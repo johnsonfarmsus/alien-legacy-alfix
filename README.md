@@ -1,6 +1,7 @@
 # ALFIX — Alien Legacy mass-driver fixes + autosave
 
-A patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01). It does three things:
+A patch for **Alien Legacy** (Sierra/Ybarra Productions, DOS, v1.01 and v1.10). It does
+three things:
 
 1. **Fixes the game's best-known crash.** Once a colony has a mass driver aimed at
    certain destinations, the game dies whenever the clock advances:
@@ -64,12 +65,18 @@ python3 alfix.py --fix-saves            # (from the game folder; or pass the SAV
 ```
 
 which resets every online mass driver with a garbage countdown to the correct
-6-turn cycle, keeping the untouched saves in `SAVES/BACKUP/`.
+6-turn cycle, keeping the untouched saves in `SAVES/BACKUP/`. `--fix-saves` knows
+the v1.01 save layout only (it skips files of any other size); on v1.10 use the
+offline/online toggle instead.
 
-**Versions.** Built and tested against the v1.01 CD executable
-(`AL.EXE`, 827,647 bytes, MD5 `fb004009cb1dd703a143a5d9775c5b8c`).
-Standard edition result: MD5 `a1998a1e69f2454a5959c2bcea5f9dae`;
-fixes only: `9644652f2e9c2b64fb04c5b580f7d010`.
+**Versions.** Both patchers detect the version by checking every patch site, and
+work on either supported build:
+
+| build | `AL.EXE` | original MD5 | standard | fixes only |
+|---|---|---|---|---|
+| v1.01 CD | 827,647 bytes | `fb004009cb1dd703a143a5d9775c5b8c` | `a1998a1e69f2454a5959c2bcea5f9dae` | `9644652f2e9c2b64fb04c5b580f7d010` |
+| v1.10 CD (`AL_CD_V1.10`, March 1995) | 936,827 bytes | `e6c78d883eb7972bc4c69098cdeff971` | `0542c76f5d0c7d818ce944a3d292c10f` | `4ca4f029fbbe20bfb4ece0f1bccfd3fc` |
+
 If your `AL.EXE` differs (another release or a floppy version) the patcher will
 say so and change nothing; please open an issue with your file's size and MD5.
 
@@ -123,7 +130,7 @@ code, so the original programmers guarded most of these lookups and missed two.
 
 Bug fixes: five in-place edits, same length as the original code, so nothing else
 moves. Autosave: the 6-byte hook, the 152-byte cave and the 4-byte header edit
-described above. Offsets are relative to LE object 1; add `0x3E324` for the file offset.
+described above. Offsets are relative to LE object 1; add `0x3E324` for the file offset (v1.01; v1.10 is below).
 
 | obj1 offset | original | patched | effect |
 |---|---|---|---|
@@ -135,6 +142,28 @@ described above. Offsets are relative to LE object 1; add `0x3E324` for the file
 | `0x2E0A1` | `83FE04 7D18 8D04AD00000000 29E8 C1E002 01E8 668B8482D68A0000 EB16 8D46FC 890424 8B3424 C1E003 29F0 668B84423E950000` | `8D46FC 83F80E 7711 89C6 C1E003 29F0 668B84423E950000 EB1A 8D04AD00000000 29E8 C1E002 01E8 668B8482D68A0000 90909090` | The countdown loader's branch selector, rewritten (51 bytes, 4 spare) so that `(product-4)` is compared unsigned against 14: codes 4..18 use `PROD.DAT` as before, everything else (including mass-driver destinations) uses the installation's own `INST.DAT` cycle. Mass drivers now fire every 6 turns. |
 
 For every valid product code the patched code behaves identically to the original.
+
+### v1.10
+
+Sierra's v1.10 release (March 1995) did not fix any of this: its release notes don't
+mention mass drivers, and the code still has the same unchecked lookups and unguarded
+divisions. The code moved (LE object 1 now starts at file offset `0x45054`) and two
+sites are compiled with different registers, so they are re-encoded. Same fixes,
+same lengths:
+
+| obj1 offset | v1.01 equivalent | original | patched |
+|---|---|---|---|
+| `0x1C8F7` | `0x2E5B7` | `83FA04 7C40 8D42FC 6BC00E` | `83EA04 83FA0F 733D 6BC20E` (`imul eax,edx,14`: v1.10 keeps the row offset in `eax`) |
+| `0x1C8D4` | `0x2E594` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` (identical) |
+| `0x1C929` | `0x2E5E8` | `89442434 8B6C2434` | `89C5 85ED 740D 9090` (identical) |
+| `0x18B0A` | `0x2A89C` | `31FF 668BB83E950000 89D0 C1FA1F F7FF` | `0FB7B83E950000 92 99 85FF 7501 47 F7FF` (the first 16 bytes of the v1.01 edit; the instruction after it differs in v1.10 and is left alone) |
+| `0x1C3E6` | `0x2E0A1` | `83FD04 7D0D 6BC334 668B8406D68A0000 EB1A 8D45FC 890424 8B2C24 8D04C500000000 29E8 668B84463E950000` | `8D45FC 83F80E 7715 89C5 8D04C500000000 29E8 668B84463E950000 EB0F 6BC334 668B8406D68A0000 90909090` (44 bytes; v1.10 holds the product in `ebp` and the kind in `ebx`) |
+
+The other three divisions in v1.10's cost routine are safe, as in v1.01: one is reached
+only for product code 4 exactly, one only for installation kinds 0x16/0x19/0x1A, and
+one already checks for zero.
+
+The autosave edits for v1.10 are listed in the next section.
 
 ## How the autosave works
 
@@ -158,6 +187,32 @@ Tested by driving the game under DOSBox from a turn-4487 save: `AUTO3` was writt
 at turn 4600, `AUTO4` at 4800, `AUTO5` at 5000 and `AUTO1` at 5200, each a normal
 213,605-byte save that loads from the Load Game screen.
 
+### v1.10
+
+v1.10 has the same file-manager object, compiled the same way, so the cave code is
+unchanged apart from its addresses (`nasm -f bin -DV110 autosave.asm`). The method
+table is filled in at `0x2F6F0`: the save routine is slot `+0x08`, the turn-tick
+method slot `+0x18`.
+
+| | v1.01 | v1.10 |
+|---|---|---|
+| save routine | `0x40DF0` | `0x2F8D0` |
+| save-name address (imm32) | `0x40E08` | `0x2F8E8` (`mov esi,save_name`; obj2 `0x39A84`) |
+| turn-tick method | `0x41448` | `0x2FF50` |
+| turn-counter address (imm32) | `0x4145A` | `0x2FF62` (`mov edx,[turn]`; obj2 `0x35F50`) |
+| hooked epilogue `5D5F5E595BC3` | `0x41523` | `0x3002B`, becomes `E960A70300 90` |
+| code cave (152 bytes) | `0x58D80` | `0x6A790` |
+| LE header, object 1 size | file `0x28780`: `0x58D68` → `0x59000` | file `0x29168`: `0x6A788` → `0x6B000` |
+
+As in v1.01, no fixup touches the 6-byte epilogue or the cave, and nothing else in
+the game references the 16 bytes after the save-name string that the routine saves
+and restores.
+
+Tested on v1.10 under DOSBox from a new game with a manual save `TEST` at turn 2:
+`AUTO1` was written at turn 200 and `AUTO2` at turn 400 (the turn counter is the
+dword at offset 1 of a save), each a normal 215,765-byte save that loads from the
+Load Game screen, and the player's save name was still `TEST` afterwards.
+
 ## Not an emulator problem
 
 This was first suspected to be a DOSBox-X dynamic-core issue on Apple Silicon.
@@ -171,9 +226,49 @@ nasm -f bin alfix.asm -o ALFIX.COM
 ```
 
 `alfix.asm` is plain 8086 code using only DOS INT 21h calls; the resulting
-`ALFIX.COM` is about 1.6 KB. MD5 of the included build: `31725fc5a11eae64bd70ea18170e4fe2`.
-The autosave routine is built separately with `nasm -f bin autosave.asm -o autosave.bin`;
-its bytes are embedded in both patchers.
+`ALFIX.COM` is about 2 KB. MD5 of the included build: `9191148c04bcc50455fae89814ec8dfd`.
+The autosave routine is built separately with `nasm -f bin autosave.asm -o autosave.bin`
+(add `-DV110` for v1.10); its bytes are embedded in both patchers.
+
+## Campaign guide
+
+`guide.py` builds a browsable campaign guide from your own game files: all 60
+technologies with their effect, the seven science levels each needs, research cost,
+the prerequisites the game enforces, the factory or power-plant level each upgrade
+unlocks, and the in-game lab reports and encyclopedia text; the technologies the story
+depends on; and when each of the 27 cinematics plays. Like the patcher, it ships no
+game content; the page is made locally.
+
+```
+python3 guide.py                          # from the game folder; writes guide.html
+python3 guide.py GAME_DIR OUT.html
+```
+
+The story and cinematic sections are written from an analysis of the game's event
+scripts. Each `RESOURCE.0xx` file is a small compiled module (32-byte `MZ` header, then
+32-bit code) that the game calls with a table of about 150 callback functions; one of
+them schedules `?:cinema.NNN`. Films 4, 6, 10, 21 and 27 aren't played by any event.
+
+`TECH.DAT` and `TECHTXT.DAT` are byte-identical in v1.01 and v1.10, so the page is the
+same for both.
+
+Formats, as decoded:
+
+- `TECHTXT.DAT` (and the other `*TXT.DAT` files): `u16` string count, `u16` 4, then
+  count+1 `u32` offsets (the last marks the end), then NUL-terminated strings.
+- `TECH.DAT`: 96 records of 25 bytes, 60 in use. Byte 0 is the kind (2 upgrade,
+  4 component or theory, 3 story device, 1 the missile technology); bytes 2–8 are the
+  science levels; bytes 9–11 are up to three prerequisite record numbers (`0x63` = none);
+  byte 12 is the research cost; bytes 13–24 are six `u16` indexes into `TECHTXT.DAT`:
+  effect line, "still needed" message, progress report, completion report, first
+  encyclopedia entry, encyclopedia entry.
+
+Two things are inferred rather than stored. Technology names aren't kept as text in
+the game files, so each comes from the opening of its encyclopedia entry. The science
+order (Astronomy, Geology, Electronics, Chemistry, Biology, Mathematics, Physics) is
+read off which level each technology leans on: the plague and the mushroom synthesizer
+on Biology, the Translation Constant on Mathematics, the black-hole and orbital devices
+on Astronomy.
 
 ## License
 
